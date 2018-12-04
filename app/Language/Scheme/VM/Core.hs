@@ -142,7 +142,8 @@ readOrThrowD parser input = case parse parser "d" input of
 
 parseDExpr :: Parser DVal
 parseDExpr = parseDAtom
-         <|> parseDAtom
+         <|> parseDFloat
+         <|> parseDInteger
 
 
 parseDAtom :: Parser DVal
@@ -154,6 +155,15 @@ parseDAtom = do
                          "true"  -> DBool True
                          "false" -> DBool False
                          _    -> DAtom atom
+
+
+
+parseDFloat :: Parser DVal
+parseDFloat = try $ liftM (DReal . read) $ (many1 digit) <> (string ".") <> (many1 digit)
+
+
+parseDInteger :: Parser DVal
+parseDInteger = liftM (DInteger . read) $ (many1 digit)
 
 
 -- *** LispVal
