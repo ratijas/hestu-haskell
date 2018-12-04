@@ -104,6 +104,7 @@ data DVal = DAtom String
           | DBool Bool
           | DInteger Integer
           | DReal Double
+          | DString String
 
 
 instance Show DVal where
@@ -112,6 +113,7 @@ instance Show DVal where
   show (DBool False) = "false"
   show (DInteger i) = show i
   show (DReal i) = show i
+  show (DString contents) = "\"" ++ contents ++ "\""
 
 
 -- *** DVal Parser
@@ -135,6 +137,15 @@ readOrThrowD parser input = case parse parser "d" input of
 parseDExpr :: Parser DVal
 parseDExpr = parseDAtom
          <|> parseDNumber
+         <|> parseDString
+
+
+parseDString :: Parser DVal
+parseDString = do
+                char '"'
+                x <- many (noneOf "\"")
+                char '"'
+                return $ DString x
 
 
 parseDAtom :: Parser DVal
