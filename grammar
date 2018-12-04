@@ -1,0 +1,44 @@
+start: program
+
+program :  (  statement ";" )*
+declaration :  "var" variabledefinition ( "," variabledefinition )*
+variabledefinition :  IDENTIFIER [ ":="  expression ]
+statement     : declaration | assignment | if | loop | return | print
+assignment : reference ":=" expression
+if            : "if" expression "then" body [ "else" body ] "end"
+loop : "while" expression "loop" body "end" | "for" [ IDENTIFIER "in" ] [ expression ".." expression ] "loop" body "end"
+body: ( declaration | statement | expression )*
+return        : "return " [ expression ]
+print         : "print " expression ( "," expression )*
+expression    : relation ( ( " or " | " and " | " xor " ) relation )*
+relation      : factor [ ( "<" | "<=" | ">" | ">=" | "=" | "/=" ) factor ]
+factor : term ( [ "+" | "-" ] term )*
+term : unary ( ( "*" | "/" ) unary )*
+unary : reference | reference " is " typeindicator | [ "+" | "-" | " not " ] primary
+primary       : literal | "readInt" | "readReal" | "readString"
+| functionliteral | "(" expression ")"
+typeindicator : "int" | "real" | "bool" | "string"
+| "empty"
+| "[" "]"
+| "{" "}"
+| "func"
+functionliteral : "func" [ "(" IDENTIFIER ( "," IDENTIFIER )* ")" ] funbody
+funbody : "is" body "end" | "=>" expression
+reference     : IDENTIFIER | reference "[" expression "]" | reference "(" expression ( "," expression )* ")"
+| reference "." IDENTIFIER | reference "." INTEGER
+literal : INTEGER | REAL | STRING | BOOLEAN | tuple
+| array
+| "empty"
+array : "[" [ expression ( "," expression )* ] "]"
+tuple : "{" tupleelement ( "," tupleelement )* "}"
+tupleelement : [ IDENTIFIER ":=" ] expression
+
+
+REAL: /[0-9]+/ "." /[0-9]+/
+INTEGER: /[0-9]+/
+BOOLEAN: "true" | "false"
+STRING: /String/
+IDENTIFIER: /([a-zA-Z]{1}[0-9a-zA-Z]{0,31})/
+
+WHITESPACE: (" " | "\n")+
+%ignore WHITESPACE
