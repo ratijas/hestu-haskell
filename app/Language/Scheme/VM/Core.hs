@@ -111,6 +111,7 @@ data DVal = DAtom String
           | DBool Bool
           | DInteger Integer
           | DReal Float
+          | DString String
           -- deriving (Show)
 
 
@@ -120,6 +121,7 @@ instance Show DVal where
   show (DBool False) = "false"
   show (DInteger i) = show i
   show (DReal i) = show i
+  show (DString contents) = "\"" ++ contents ++ "\""
 
 
 -- *** DVal Parser
@@ -144,7 +146,15 @@ parseDExpr :: Parser DVal
 parseDExpr = parseDAtom
          <|> parseDFloat
          <|> parseDInteger
+         <|> parseDString
 
+
+parseDString :: Parser DVal
+parseDString = do
+                char '"'
+                x <- many (noneOf "\"")
+                char '"'
+                return $ DString x
 
 parseDAtom :: Parser DVal
 parseDAtom = do
