@@ -19,15 +19,6 @@ dLanguage :: LanguageDef st
 dLanguage = haskellDef
 
 dLexer       = P.makeTokenParser dLanguage
---             { identStart = letter
---             , identLetter = alphaNum
---             , opStart = oneOf "~&=:"
---             , opLetter = oneOf "~&=:"
---             , reservedOpNames = ["~", "&", "=", ":="]
---             , reservedNames = ["true", "false", "nop",
---                                "if", "then", "else", "fi",
---                                "while", "do", "od"]
---             }
 
 
 readExpr :: String -> ThrowsError LispVal
@@ -113,7 +104,6 @@ data DVal = DAtom String
           | DBool Bool
           | DInteger Integer
           | DReal Double
-          -- deriving (Show)
 
 
 instance Show DVal where
