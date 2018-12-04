@@ -1,0 +1,23 @@
+name:                scheme-parser
+version:             0.1.0.0
+github:              "ratijas/scheme-parser"
+license:             BSD3
+author:              "ratijas"
+maintainer:          "@ratijas"
+copyright:           "(c)"
+extra-source-files: []
+description:         Parser for Scheme language
+
+dependencies:
+- base >= 4.7 && < 5
+- parsec >= 3.1 && < 4
+- mtl
+
+executables:
+  scheme-parser-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
