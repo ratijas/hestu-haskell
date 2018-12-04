@@ -10,9 +10,22 @@ import Data.Maybe
 import System.Environment
 import System.IO
 import Text.ParserCombinators.Parsec hiding (spaces)
+-- import Text.Parsec.Language
+-- import Text.Parsec.Token
 
 
 -- *** Parser
+
+-- d :: LanguageDef
+-- d = emptyDef{ identStart = letter
+--             , identLetter = alphaNum
+--             , opStart = oneOf "~&=:"
+--             , opLetter = oneOf "~&=:"
+--             , reservedOpNames = ["~", "&", "=", ":="]
+--             , reservedNames = ["true", "false", "nop",
+--                                "if", "then", "else", "fi",
+--                                "while", "do", "od"]
+--             }
 
 
 readExpr :: String -> ThrowsError LispVal
@@ -89,6 +102,58 @@ parseQuoted = do
     char '\''
     x <- parseExpr
     return $ List [Atom "quote", x]
+
+
+-- *** DVal
+
+
+data DVal = DAtom String
+          | DBool Bool
+          | DInteger Integer
+          | DReal Float
+          -- deriving (Show)
+
+
+instance Show DVal where
+  show (DAtom name) = name
+  show (DBool True) = "true"
+  show (DBool False) = "false"
+  show (DInteger i) = show i
+  show (DReal i) = show i
+
+
+-- *** DVal Parser
+
+
+
+readDExpr :: String -> ThrowsError DVal
+readDExpr = readOrThrowD parseDExpr
+
+
+readDExprList :: String -> ThrowsError [DVal]
+readDExprList = readOrThrowD (endBy parseDExpr spaces)
+
+
+readOrThrowD :: Parser a -> String -> ThrowsError a
+readOrThrowD parser input = case parse parser "d" input of
+    Left err  -> throwError $ Parser err
+    Right val -> return val
+
+
+parseDExpr :: Parser DVal
+parseDExpr = parseDAtom
+         <|> parseDAtom
+
+
+parseDAtom :: Parser DVal
+parseDAtom = do
+              first <- letter <|> symbol
+              rest <- many (letter <|> digit <|> symbol)
+              let atom = first:rest
+              return $ case atom of
+                         "true"  -> DBool True
+                         "false" -> DBool False
+                         _    -> DAtom atom
 
 
 -- *** LispVal
