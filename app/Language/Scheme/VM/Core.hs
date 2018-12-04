@@ -309,7 +309,7 @@ term = parser
     parser = do
       p  <- primary
       tails <- many termTail
-      return $ foldl (flip ($)) p tails
+      return $ foldl (flip id) p tails
 
 
 primary :: Parser DExpr
