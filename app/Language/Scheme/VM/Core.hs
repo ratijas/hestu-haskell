@@ -5,21 +5,17 @@ module Language.Scheme.VM.Core where
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.IO.Class
+import Data.List (intercalate)
 import Data.IORef
 import Data.Maybe
 import System.Environment
 import System.IO
-import Text.ParserCombinators.Parsec hiding (spaces)
-import Text.Parsec.Language (emptyDef, haskellDef, LanguageDef)
-import Text.Parsec.Token (naturalOrFloat)
 import qualified Text.Parsec.Token as P
+import Text.Parsec.Expr
+import Text.Parsec.Language (emptyDef, javaStyle, LanguageDef)
+import Text.ParserCombinators.Parsec hiding (spaces, string)
 
 -- *** Parser
-dLanguage :: LanguageDef st
-dLanguage = haskellDef
-
-dLexer       = P.makeTokenParser dLanguage
-
 
 readExpr :: String -> ThrowsError LispVal
 readExpr = readOrThrow parseExpr
@@ -97,35 +93,82 @@ parseQuoted = do
     return $ List [Atom "quote", x]
 
 
--- *** DVal
+-- *** DExpr
 
 
-data DVal = DAtom String
-          | DBool Bool
-          | DInteger Integer
-          | DReal Double
-          | DString String
+-- data DExpr = DOp
+--            | DTerm
 
 
-instance Show DVal where
+data DExpr = DAtom String
+           | DBool Bool
+           | DInt Integer
+           | DReal Double
+           | DString String
+           | DIndex DExpr DExpr
+           | DCall DExpr [DExpr]
+           | DOp
+
+
+data DBinaryOp = DPlus
+               | DMinus
+               | DMul
+               | DDiv
+               | DNot
+               | DLT
+               | DGT
+               | DLE
+               | DGE
+               | DEqual
+               | DNotEqual
+
+
+data DUnaryOp = DUnaryMinus
+              | DUnaryPlus
+              | DUnaryNot
+
+
+instance Show DUnaryOp where
+  show DUnaryMinus = "-"
+  show DUnaryPlus = "+"
+  show DUnaryNot = "not "
+
+
+data DTypeIndicator = DTypeInt
+                    | DTypeReal
+                    | DTypeBool
+                    | DTypeString
+                    | DTypeEmpty
+                    | DTypeArray
+                    | DTypeTuple
+                    | DTypeFunc
+
+
+data DOp = UnaryOp DUnaryOp DExpr
+         | BinaryOp DBinaryOp DExpr DExpr
+         | IsInstance DExpr DTypeIndicator
+
+
+instance Show DExpr where
   show (DAtom name) = name
   show (DBool True) = "true"
   show (DBool False) = "false"
-  show (DInteger i) = show i
+  show (DInt i) = show i
   show (DReal i) = show i
   show (DString contents) = "\"" ++ contents ++ "\""
+  show (DIndex it idx) = (show it) ++ "[" ++ (show idx) ++ "idx"
+  show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
 
 
--- *** DVal Parser
+-- *** DExpr Parser
 
 
+readDExpr :: String -> ThrowsError DExpr
+readDExpr = readOrThrowD primitive
 
-readDExpr :: String -> ThrowsError DVal
-readDExpr = readOrThrowD parseDExpr
 
-
-readDExprList :: String -> ThrowsError [DVal]
-readDExprList = readOrThrowD (endBy parseDExpr spaces)
+readDExprList :: String -> ThrowsError [DExpr]
+readDExprList = readOrThrowD (endBy primitive spaces)
 
 
 readOrThrowD :: Parser a -> String -> ThrowsError a
@@ -134,36 +177,50 @@ readOrThrowD parser input = case parse parser "d" input of
     Right val -> return val
 
 
-parseDExpr :: Parser DVal
-parseDExpr = parseDAtom
-         <|> parseDNumber
-         <|> parseDString
+
+-- The lexer
+
+language = javaStyle
+
+lexer          = P.makeTokenParser javaStyle
+
+parens         = P.parens lexer
+braces         = P.braces lexer
+brackets       = P.brackets lexer
+identifier     = P.identifier lexer
+reserved       = P.reserved lexer
+naturalOrFloat = P.naturalOrFloat lexer
 
 
-parseDString :: Parser DVal
-parseDString = do
+string :: Parser DExpr
+string = do
                 char '"'
-                x <- many (noneOf "\"")
+                x <- many $ noneOf "\""
                 char '"'
                 return $ DString x
 
 
-parseDAtom :: Parser DVal
-parseDAtom = do
-              first <- letter <|> symbol
-              rest <- many (letter <|> digit <|> symbol)
-              let atom = first:rest
-              return $ case atom of
-                         "true"  -> DBool True
-                         "false" -> DBool False
-                         _    -> DAtom atom
+atom :: Parser DExpr
+atom = identifier >>= return . DAtom
 
 
-parseDNumber :: Parser DVal
-parseDNumber = P.naturalOrFloat dLexer >>= return . either DInteger DReal
+bool :: Parser DExpr
+bool = (reserved "true" >> return (DBool True))
+   <|> (reserved "false" >> return (DBool False))
 
 
--- exprparser :: Parser Expr
+number :: Parser DExpr
+number = naturalOrFloat >>= return . either DInt DReal
+
+
+primitive :: Parser DExpr
+primitive = bool
+        <|> number
+        <|> string
+        <|> atom
+
+
+-- exprparser :: Parser DExpr
 -- exprparser = buildExpressionParser table term <?> "expression"
 -- table = [ [Prefix (m_reservedOp "~" >> return (Uno Not))]
 --         , [Infix (m_reservedOp "&" >> return (Duo And)) AssocLeft]
@@ -175,7 +232,9 @@ parseDNumber = P.naturalOrFloat dLexer >>= return . either DInteger DReal
 --        <|> (m_reserved "false" >> return (Con False))
 
 
--- mainparser :: Parser DVal
+
+
+-- mainparser :: Parser DExpr
 -- mainparser = m_whiteSpace >> stmtparser <* eof
 --     where
 --       stmtparser :: Parser Stmt
@@ -202,6 +261,50 @@ parseDNumber = P.naturalOrFloat dLexer >>= return . either DInteger DReal
 --                      ; m_reserved "od"
 --                      ; return (While b p)
 --                      }
+
+
+indexing :: Parser DExpr
+indexing = try $ do
+  it <- expr
+  idx <- brackets expr
+  return $ DIndex it idx
+
+
+expr :: Parser DExpr
+expr    = buildExpressionParser table term
+       <?> "expression"
+
+
+-- data DExpr = DAtom String
+--            | DBool Bool
+--            | DInt Integer
+--            | DReal Double
+--            | DString String
+--            | DIndex DExpr DExpr
+--            | DCall DExpr [DExpr]
+
+
+term :: Parser DExpr
+term = primitive
+   <|> parens expr
+   <|> indexing
+  -- <|> calling
+   <?> "simple expression"
+
+
+table = [[]]
+-- table   = [[prefix "-" negate, prefix "+" id ]
+--          , [postfix "++" (+1)]
+--          , [binary "*" (*) AssocLeft, binary "/" (div) AssocLeft ]
+--          , [binary "+" (+) AssocLeft, binary "-" (-)   AssocLeft ]
+--          , [binary "is" IsInstance AssocLeft]
+--          ]
+
+-- binary  name fun assoc = Infix (do{ P.reservedOp name; return fun }) assoc
+-- prefix  name fun       = Prefix (do{ P.reservedOp name; return fun })
+-- postfix name fun       = Postfix (do{ P.reservedOp name; return fun })
+
+
 
 
 -- *** LispVal
