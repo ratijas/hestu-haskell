@@ -190,6 +190,7 @@ brackets       = P.brackets lexer
 identifier     = P.identifier lexer
 reserved       = P.reserved lexer
 naturalOrFloat = P.naturalOrFloat lexer
+commaSep       = P.commaSep lexer
 
 
 string :: Parser DExpr
@@ -275,6 +276,13 @@ expr    = buildExpressionParser table term
        <?> "expression"
 
 
+calling :: Parser DExpr
+calling = try $ do
+  fn <- expr
+  args <- commaSep expr
+  return $ DCall fn args
+
+
 -- data DExpr = DAtom String
 --            | DBool Bool
 --            | DInt Integer
@@ -288,7 +296,7 @@ term :: Parser DExpr
 term = primitive
    <|> parens expr
    <|> indexing
-  -- <|> calling
+   <|> calling
    <?> "simple expression"
 
 
