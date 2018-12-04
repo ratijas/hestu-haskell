@@ -1,3 +1,7 @@
+# Haskell
 .stack-work/
 scheme-parser.cabal
 *~
+
+# JetBrains IntelliJ
+.idea
