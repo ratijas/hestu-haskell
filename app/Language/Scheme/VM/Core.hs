@@ -100,14 +100,18 @@ parseQuoted = do
 --            | DTerm
 
 
-data DExpr = DAtom String
-           | DBool Bool
-           | DInt Integer
-           | DReal Double
-           | DString String
-           | DIndex DExpr DExpr
-           | DCall DExpr [DExpr]
-           | DOp
+data DExpr -- | *** Primitives
+           = DAtom String         -- ^ Identifier
+           | DBool Bool           -- ^ Boolean
+           | DInt Integer         -- ^ Integer
+           | DReal Double         -- ^ Floating point
+           | DString String       -- ^ String (sequence of bytes)
+           -- | *** Operations
+           | DIndex DExpr DExpr   -- ^ Indexing via BRACKETS
+           | DCall DExpr [DExpr]  -- ^ Function call via PARENS
+           | DMember DExpr (Either String Int)
+                                  -- ^ Member access via DOT operator
+           | DOp                  -- ^ Operation via one of predefined operators
 
 
 data DBinaryOp = DPlus
@@ -156,19 +160,20 @@ instance Show DExpr where
   show (DInt i) = show i
   show (DReal i) = show i
   show (DString contents) = "\"" ++ contents ++ "\""
-  show (DIndex it idx) = (show it) ++ "[" ++ (show idx) ++ "idx"
+  show (DIndex lhs idx) = (show lhs) ++ "[" ++ (show idx) ++ "]"
   show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
+  show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
 
 
 -- *** DExpr Parser
 
 
 readDExpr :: String -> ThrowsError DExpr
-readDExpr = readOrThrowD primitive
+readDExpr = readOrThrowD (expr <* eof)
 
 
-readDExprList :: String -> ThrowsError [DExpr]
-readDExprList = readOrThrowD (endBy primitive spaces)
+-- readDExprList :: String -> ThrowsError [DExpr]
+-- readDExprList = readOrThrowD (endBy expr spaces)
 
 
 readOrThrowD :: Parser a -> String -> ThrowsError a
@@ -181,6 +186,10 @@ readOrThrowD parser input = case parse parser "d" input of
 -- The lexer
 
 language = javaStyle
+            { P.caseSensitive  = True
+            , P.reservedNames = []
+            , P.reservedOpNames = ["."]
+            }
 
 lexer          = P.makeTokenParser javaStyle
 
@@ -188,9 +197,12 @@ parens         = P.parens lexer
 braces         = P.braces lexer
 brackets       = P.brackets lexer
 identifier     = P.identifier lexer
+decimal        = P.decimal lexer
 reserved       = P.reserved lexer
 naturalOrFloat = P.naturalOrFloat lexer
 commaSep       = P.commaSep lexer
+dot            = P.dot lexer
+reservedOp     = P.reservedOp lexer
 
 
 string :: Parser DExpr
@@ -264,43 +276,57 @@ primitive = bool
 --                      }
 
 
-indexing :: Parser DExpr
+indexing :: Parser (DExpr -> DExpr)
 indexing = try $ do
-  it <- expr
   idx <- brackets expr
-  return $ DIndex it idx
+  return $ flip DIndex idx
+
+
+calling :: Parser (DExpr -> DExpr)
+calling = try $ do
+  args <- parens $ commaSep expr
+  return $ flip DCall args
+
+
+membering :: Parser (DExpr -> DExpr)
+membering = try $ do
+  dot
+  choice [ identifier >>= return . Left
+         , decimal >>= return . Right . fromIntegral
+         ]
+    >>= return . flip DMember
 
 
 expr :: Parser DExpr
-expr    = buildExpressionParser table term
-       <?> "expression"
-
-
-calling :: Parser DExpr
-calling = try $ do
-  fn <- expr
-  args <- commaSep expr
-  return $ DCall fn args
-
-
--- data DExpr = DAtom String
---            | DBool Bool
---            | DInt Integer
---            | DReal Double
---            | DString String
---            | DIndex DExpr DExpr
---            | DCall DExpr [DExpr]
+expr = buildExpressionParser table term
+   <?> "expression"
 
 
 term :: Parser DExpr
-term = primitive
-   <|> parens expr
-   <|> indexing
-   <|> calling
-   <?> "simple expression"
+term = parser
+   <?> "term"
+   where
+    parser = do
+      p  <- primary
+      tails <- many termTail
+      return $ foldl (flip ($)) p tails
+
+
+primary :: Parser DExpr
+primary = parens expr
+      <|> primitive
+      <?> "term primary"
+
+
+termTail :: Parser (DExpr -> DExpr)
+termTail = calling
+       <|> indexing
+       <|> membering
+       <?> "term tail"
 
 
 table = [[]]
+
 -- table   = [[prefix "-" negate, prefix "+" id ]
 --          , [postfix "++" (+1)]
 --          , [binary "*" (*) AssocLeft, binary "/" (div) AssocLeft ]
@@ -510,7 +536,7 @@ makeNormalFunc = makeFunc Nothing
 makeVarArgs = makeFunc . Just . showVal
 
 
--- *** Primititives
+-- *** Primitives
 
 
 primitives :: [(String, [LispVal] -> ThrowsError LispVal)]
@@ -647,7 +673,7 @@ equal [arg1, arg2] = do
 equal badArgList = throwError $ NumArgs 2 badArgList
 
 
--- *** IO Primititives
+-- *** IO Primitives
 
 
 ioPrimitives :: [(String, [LispVal] -> IOThrowsError LispVal)]
