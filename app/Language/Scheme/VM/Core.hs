@@ -10,14 +10,16 @@ import Data.Maybe
 import System.Environment
 import System.IO
 import Text.ParserCombinators.Parsec hiding (spaces)
--- import Text.Parsec.Language
--- import Text.Parsec.Token
-
+import Text.Parsec.Language (emptyDef, haskellDef, LanguageDef)
+import Text.Parsec.Token (naturalOrFloat)
+import qualified Text.Parsec.Token as P
 
 -- *** Parser
+dLanguage :: LanguageDef st
+dLanguage = haskellDef
 
--- d :: LanguageDef
--- d = emptyDef{ identStart = letter
+dLexer       = P.makeTokenParser dLanguage
+--             { identStart = letter
 --             , identLetter = alphaNum
 --             , opStart = oneOf "~&=:"
 --             , opLetter = oneOf "~&=:"
@@ -110,8 +112,7 @@ parseQuoted = do
 data DVal = DAtom String
           | DBool Bool
           | DInteger Integer
-          | DReal Float
-          | DString String
+          | DReal Double
           -- deriving (Show)
 
 
@@ -121,7 +122,6 @@ instance Show DVal where
   show (DBool False) = "false"
   show (DInteger i) = show i
   show (DReal i) = show i
-  show (DString contents) = "\"" ++ contents ++ "\""
 
 
 -- *** DVal Parser
@@ -144,17 +144,8 @@ readOrThrowD parser input = case parse parser "d" input of
 
 parseDExpr :: Parser DVal
 parseDExpr = parseDAtom
-         <|> parseDFloat
-         <|> parseDInteger
-         <|> parseDString
+         <|> parseDNumber
 
-
-parseDString :: Parser DVal
-parseDString = do
-                char '"'
-                x <- many (noneOf "\"")
-                char '"'
-                return $ DString x
 
 parseDAtom :: Parser DVal
 parseDAtom = do
@@ -167,13 +158,49 @@ parseDAtom = do
                          _    -> DAtom atom
 
 
+parseDNumber :: Parser DVal
+parseDNumber = P.naturalOrFloat dLexer >>= return . either DInteger DReal
 
-parseDFloat :: Parser DVal
-parseDFloat = try $ liftM (DReal . read) $ (many1 digit) <> (string ".") <> (many1 digit)
+
+-- exprparser :: Parser Expr
+-- exprparser = buildExpressionParser table term <?> "expression"
+-- table = [ [Prefix (m_reservedOp "~" >> return (Uno Not))]
+--         , [Infix (m_reservedOp "&" >> return (Duo And)) AssocLeft]
+--         , [Infix (m_reservedOp "=" >> return (Duo Iff)) AssocLeft]
+--         ]
+-- term = m_parens exprparser
+--        <|> fmap Var m_identifier
+--        <|> (m_reserved "true" >> return (Con True))
+--        <|> (m_reserved "false" >> return (Con False))
 
 
-parseDInteger :: Parser DVal
-parseDInteger = liftM (DInteger . read) $ (many1 digit)
+-- mainparser :: Parser DVal
+-- mainparser = m_whiteSpace >> stmtparser <* eof
+--     where
+--       stmtparser :: Parser Stmt
+--       stmtparser = fmap Seq (m_semiSep1 stmt1)
+--       stmt1 = (m_reserved "nop" >> return Nop)
+--               <|> do { v <- m_identifier
+--                      ; m_reservedOp ":="
+--                      ; e <- exprparser
+--                      ; return (v := e)
+--                      }
+--               <|> do { m_reserved "if"
+--                      ; b <- exprparser
+--                      ; m_reserved "then"
+--                      ; p <- stmtparser
+--                      ; m_reserved "else"
+--                      ; q <- stmtparser
+--                      ; m_reserved "fi"
+--                      ; return (If b p q)
+--                      }
+--               <|> do { m_reserved "while"
+--                      ; b <- exprparser
+--                      ; m_reserved "do"
+--                      ; p <- stmtparser
+--                      ; m_reserved "od"
+--                      ; return (While b p)
+--                      }
 
 
 -- *** LispVal
