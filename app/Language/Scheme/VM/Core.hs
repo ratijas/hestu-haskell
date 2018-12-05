@@ -96,6 +96,12 @@ parseQuoted = do
 
 -- *** D Parser
 
+
+newtype DProgram = DProgram DBody
+instance Show DProgram where
+  show (DProgram body) = show body
+
+
 data DStmt = String ::= DExpr
            | DExpr := DExpr
            | DExpr DExpr
@@ -103,16 +109,19 @@ data DStmt = String ::= DExpr
            | DWhile DExpr DBody
            | DFor String DIterable DBody
            | DLoop DBody
+           deriving Show
+           -- TODO
 
 
 data DIterable = DIterableExpr DExpr
                | DIterableRange DExpr DExpr
+               deriving Show
+               -- TODO
 
 
 newtype DBody = DBody [DStmt]
-
 instance Show DBody where
-  show = const "..."
+  show (DBody stmts) = intercalate ";\n" (map show stmts)
 
 
 -- *** DExpr
@@ -241,6 +250,9 @@ instance Show DExpr where
 -- *** DExpr Parser
 
 
+readDProgram :: String -> ThrowsError DProgram
+readDProgram = readOrThrowD program
+
 readDExpr :: String -> ThrowsError DExpr
 readDExpr = readOrThrowD (expr <* eof)
 
@@ -281,6 +293,11 @@ dot            = P.dot            lexer
 semi           = P.semi           lexer
 reservedOp     = P.reservedOp     lexer
 whiteSpace     = P.whiteSpace     lexer
+
+
+program :: Parser DProgram
+program = liftM DProgram (whiteSpace >> body <* eof)
+
 
 string :: Parser DExpr
 string = do

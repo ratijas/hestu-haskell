@@ -17,4 +17,4 @@ import Language.Scheme.VM.Core
 main :: IO ()
 main = do args <- liftIO $ getArgs
           let script = args !! 0
-          (runIOThrows $ liftM show $ (liftThrows $ readDExpr script)) >>= putStrLn
+          (runIOThrows $ liftM show $ (liftThrows $ readDProgram script)) >>= putStrLn
