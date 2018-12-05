@@ -196,6 +196,7 @@ language = javaStyle
                                 , "not", "and", "or", "xor"
                                 , "is", "end", "func"
                                 , "if", "then", "else"
+                                , "while", "for", "loop"
                                 ]
             , P.reservedOpNames = ["..", ".", "=>", ":="] ++
                                   (map show allSymbolicOps)
@@ -373,6 +374,7 @@ statements = statement `endBy` semi
 statement :: Parser DStmt
 statement = liftM DExpr expr
         <|> d_if
+        <|> d_while
      -- <|> decl
      -- <|> ...
   where
@@ -387,6 +389,14 @@ statement = liftM DExpr expr
       reserved "end"
       return $ DIf cond body1 body2
 
+    d_while :: Parser DStmt
+    d_while = do
+      reserved "while"
+      cond <- expr
+      reserved "loop"
+      b <- body
+      reserved "end"
+      return $ DWhile cond b
 
 -- TODO:
 -- Statement ::= Decl
