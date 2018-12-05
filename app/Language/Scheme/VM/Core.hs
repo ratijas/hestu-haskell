@@ -170,14 +170,14 @@ data DTypeIndicator = DTypeInt
 -- TODO: instance Show DTypeIndicator
 
 
-data DOp = UnaryOp DUnaryOp DExpr
-         | BinaryOp DExpr DBinaryOp DExpr
+data DOp = DUnaryOp DUnaryOp DExpr
+         | DBinaryOp DExpr DBinaryOp DExpr
          | DExpr `IsInstance` DTypeIndicator
 
 
 instance Show DOp where
-  show (UnaryOp op expr)      = "(" ++ (show op) ++ (show expr) ++ ")"
-  show (BinaryOp lhs op rhs)  = "(" ++ (show lhs) ++ " " ++ (show op) ++ " " ++ (show rhs) ++ ")"
+  show (DUnaryOp op expr)      = "(" ++ (show op) ++ (show expr) ++ ")"
+  show (DBinaryOp lhs op rhs)  = "(" ++ (show lhs) ++ " " ++ (show op) ++ " " ++ (show rhs) ++ ")"
   show (lhs `IsInstance` rhs) = "(" ++ (show lhs) ++ " is " ++ (show rhs) ++ ")"
 
 
