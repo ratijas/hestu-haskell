@@ -125,7 +125,7 @@ data DExpr -- | *** Primitives
            | DReal Double         -- ^ Floating point
            | DString String       -- ^ String (sequence of bytes)
            | DFunc { d_params :: [String]
-                   , d_body :: [DStmt]
+                   , d_body :: DBody
                    -- , d_closure :: Env
                    }              -- ^ Function literal via "func" keyword
            -- | *** Container literals
@@ -259,12 +259,13 @@ language = javaStyle
             { P.caseSensitive  = True
             , P.reservedNames = [ "true", "false"
                                 , "not", "and", "or", "xor"
-                                , "is"
+                                , "is", "func"
                                 ]
-            , P.reservedOpNames = "." : (map show allSymbolicOps)
+            , P.reservedOpNames = ["..", ".", "=>", ":="] ++
+                                  (map show allSymbolicOps)
             }
 
-lexer          = P.makeTokenParser javaStyle
+lexer          = P.makeTokenParser language
 
 parens         = P.parens         lexer
 braces         = P.braces         lexer
@@ -275,6 +276,7 @@ reserved       = P.reserved       lexer
 naturalOrFloat = P.naturalOrFloat lexer
 commaSep       = P.commaSep       lexer
 dot            = P.dot            lexer
+semi           = P.semi           lexer
 reservedOp     = P.reservedOp     lexer
 whiteSpace     = P.whiteSpace     lexer
 
@@ -375,6 +377,7 @@ typeChecking = try $ do
 literal :: Parser DExpr
 literal = array
       <|> tuple
+      <|> func
 
 
 array :: Parser DExpr
@@ -393,6 +396,41 @@ tuple = braces (commaSep item) >>= return . DTuple
             k <- identifier
             reservedOp ":="
             return k
+
+
+func :: Parser DExpr
+func = do
+  reserved "func"
+  params <- option [] $ parens $ commaSep identifier
+  b <- funcBody
+  return $ DFunc { d_params = params, d_body = b }
+    where funcBody :: Parser DBody
+          funcBody = full <|> short
+
+          full :: Parser DBody
+          full = do
+            reserved "is"
+            b <- body
+            reserved "end"
+            return b
+
+          short :: Parser DBody
+          short = do
+            reservedOp "=>"
+            e <- expr
+            return $ DBody [DExpr e]
+
+
+body :: Parser DBody
+body = statements >>= return . DBody
+
+
+statements :: Parser [DStmt]
+statements = statement `endBy` semi
+
+
+statement :: Parser DStmt
+statement = return $ DExpr $ DBool True
 
 
 expr :: Parser DExpr
@@ -467,7 +505,7 @@ data LispVal = Atom String
              | Bool Bool
              | PrimitiveFunc ([LispVal] -> ThrowsError LispVal)
              | Func { params :: [String], vararg :: (Maybe String),
-                      body :: [LispVal], closure :: Env }
+                      l_body :: [LispVal], closure :: Env }
              | IOFunc ([LispVal] -> IOThrowsError LispVal)
              | Port Handle
 
@@ -480,7 +518,7 @@ showVal (Bool False) = "#f"
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
 showVal (DottedList head tail) = "(" ++ unwordsList head ++ " . " ++ showVal tail ++ ")"
 showVal (PrimitiveFunc _) = "<primitive>"
-showVal (Func {params = args, vararg = varargs, body = body, closure = env}) =
+showVal (Func {params = args, vararg = varargs, l_body = body, closure = env}) =
    "(lambda (" ++ unwords (map show args) ++
       (case varargs of
          Nothing -> ""
