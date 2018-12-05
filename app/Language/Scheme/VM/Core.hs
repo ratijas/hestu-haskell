@@ -102,13 +102,13 @@ instance Show DProgram where
   show (DProgram body) = show body
 
 
-data DStmt = String ::= DExpr
-           | DExpr := DExpr
-           | DExpr DExpr
-           | DIf DExpr DBody DBody
-           | DWhile DExpr DBody
-           | DFor String DIterable DBody
-           | DLoop DBody
+data DStmt = String ::= DExpr            -- ^ Declaration
+           | DExpr   := DExpr            -- ^ Assignment
+           | DExpr DExpr                 -- ^ Wrapper for an expression.
+           | DIf DExpr DBody DBody       -- ^ If expr then body else body end
+           | DWhile DExpr DBody          -- ^ While ... loop ... end
+           | DFor String DIterable DBody -- ^ For ident in lower..upper loop ... end
+           | DLoop DBody                 -- ^ Loop forever
            deriving Show
            -- TODO
 
