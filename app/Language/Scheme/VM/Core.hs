@@ -358,9 +358,7 @@ array = brackets (commaSep expr) >>= return . DArray
 
 
 tuple :: Parser DExpr
-tuple = do
-  (items :: [(String, DExpr)]) <- braces (commaSep item)
-  return $ DTuple items
+tuple = braces (commaSep item) >>= return . DTuple
     where item :: Parser (String, DExpr)
           item = do
             k <- key
