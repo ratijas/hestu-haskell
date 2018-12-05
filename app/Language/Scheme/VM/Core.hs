@@ -31,16 +31,23 @@ data DStmt = String ::= DExpr            -- ^ Declaration
            | DIf DExpr DBody DBody       -- ^ If expr then body else body end
            | DWhile DExpr DBody          -- ^ While ... loop ... end
            | DFor String DIterable DBody -- ^ For ident in iter loop ... end
-           | DLoop DBody                 -- ^ Loop forever
-           deriving Show
-           -- TODO
 
+
+instance Show DStmt where
+  show (string ::= expr) = "var " ++ string ++ " := " ++ show expr
+  show (expr1 := exp2) = show expr1 ++ " := " ++ show exp2
+  show (DExpr exp) = show exp
+  show (DIf expr body1 body2) = "if " ++ show expr ++" then " ++ show body1 ++ " else "++ show body2
+  show (DWhile expr body) = "while " ++ show expr ++ " loop " ++ show body ++ " end"
+  show (DFor string iterable body) = "for " ++ string ++ " in "++ show iterable ++ " loop " ++ show body ++ " end"
 
 data DIterable = DIterableExpr DExpr        -- ^ Wrapper for an expression
                | DIterableRange DExpr DExpr -- ^ Range lower..upper
-               deriving Show
-               -- TODO
 
+
+instance Show DIterable where
+  show (DIterableExpr iexp) = show iexp
+  show (DIterableRange expr1 expr2) = show expr1 ++ ".." ++ show expr2
 
 newtype DBody = DBody [DStmt]
 instance Show DBody where
