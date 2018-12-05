@@ -265,20 +265,6 @@ primitive = bool
         <|> atom
 
 
--- exprparser :: Parser DExpr
--- exprparser = buildExpressionParser table term <?> "expression"
--- table = [ [Prefix (m_reservedOp "~" >> return (Uno Not))]
---         , [Infix (m_reservedOp "&" >> return (Duo And)) AssocLeft]
---         , [Infix (m_reservedOp "=" >> return (Duo Iff)) AssocLeft]
---         ]
--- term = m_parens exprparser
---        <|> fmap Var m_identifier
---        <|> (m_reserved "true" >> return (Con True))
---        <|> (m_reserved "false" >> return (Con False))
-
-
-
-
 -- mainparser :: Parser DExpr
 -- mainparser = m_whiteSpace >> stmtparser <* eof
 --     where
@@ -376,21 +362,32 @@ termTail = calling
 table = [[ prefix (reservedOp "-") DUnaryMinus
          , prefix (reservedOp "+") DUnaryPlus
          , prefix (reserved "not") DUnaryNot
-         ]]
+         ]
+        ,[ binaryOp "*" DMul, binaryOp "/" DDiv ]
+        ,[ binaryOp "+" DAdd, binaryOp "-" DSub ]
+        -- < | <= | > | >= | = | /=
+        ,[ binaryOp (show DLT) DLT
+         , binaryOp (show DLE) DLE
+         , binaryOp (show DGT) DGT
+         , binaryOp (show DGE) DGE
+         , binaryOp (show DEqual) DEqual
+         , binaryOp (show DNotEqual) DNotEqual
+         ]
+        ,[ binaryKeyword "and" DAnd
+         , binaryKeyword "or"  DOr
+         , binaryKeyword "xor" DXor
+         ]
+        ]
 
-prefix parser op = Prefix (do{ parser; return $ DOp . UnaryOp op })
--- table   = [[prefix "-" negate, prefix "+" id ]
---          , [postfix "++" (+1)]
---          , [binary "*" (*) AssocLeft, binary "/" (div) AssocLeft ]
---          , [binary "+" (+) AssocLeft, binary "-" (-)   AssocLeft ]
---          , [binary "is" IsInstance AssocLeft]
---          ]
+prefix match name = Prefix parser
+  where parser = do match
+                    return $ DOp . DUnaryOp name
 
--- binary  name fun assoc = Infix (do{ P.reservedOp name; return fun }) assoc
--- prefix  name fun       = Prefix (do{ P.reservedOp name; return fun })
--- postfix name fun       = Postfix (do{ P.reservedOp name; return fun })
-
-
+binary match name = Infix parser AssocLeft
+  where parser = do match
+                    return (\lhs rhs -> DOp $ DBinaryOp lhs name rhs)
+binaryOp      = binary . reservedOp
+binaryKeyword = binary . reserved
 
 
 -- *** LispVal
