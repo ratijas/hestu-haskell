@@ -225,16 +225,16 @@ language = javaStyle
 
 lexer          = P.makeTokenParser javaStyle
 
-parens         = P.parens lexer
-braces         = P.braces lexer
-brackets       = P.brackets lexer
-identifier     = P.identifier lexer
-decimal        = P.decimal lexer
-reserved       = P.reserved lexer
+parens         = P.parens         lexer
+braces         = P.braces         lexer
+brackets       = P.brackets       lexer
+identifier     = P.identifier     lexer
+decimal        = P.decimal        lexer
+reserved       = P.reserved       lexer
 naturalOrFloat = P.naturalOrFloat lexer
-commaSep       = P.commaSep lexer
-dot            = P.dot lexer
-reservedOp     = P.reservedOp lexer
+commaSep       = P.commaSep       lexer
+dot            = P.dot            lexer
+reservedOp     = P.reservedOp     lexer
 whiteSpace     = P.whiteSpace     lexer
 
 string :: Parser DExpr
