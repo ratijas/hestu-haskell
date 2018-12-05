@@ -165,10 +165,17 @@ data DTypeIndicator = DTypeInt
                     | DTypeArray
                     | DTypeTuple
                     | DTypeFunc
-                    deriving (Show)
 
 -- TODO: instance Show DTypeIndicator
-
+instance Show DTypeIndicator where
+  show (DTypeInt) = "int"
+  show (DTypeReal) = "real"
+  show (DTypeBool) = "bool"
+  show (DTypeString) = "string"
+  show (DTypeEmpty) = "empty"
+  show (DTypeArray) = "[]"
+  show (DTypeTuple) = "{}"
+  show (DTypeFunc) = "func"
 
 data DOp = DUnaryOp DUnaryOp DExpr
          | DBinaryOp DExpr DBinaryOp DExpr
