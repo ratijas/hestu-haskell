@@ -380,13 +380,23 @@ statements = statement `endBy` semi
 
 
 statement :: Parser DStmt
-statement = liftM DExpr expr
-        <|> d_if
+statement = d_if
         <|> d_while
         <|> d_decl
         <|> d_loop
-     -- <|> ...
+        <|> d_assignment
+        <|> d_expr
   where
+    d_assignment :: Parser DStmt
+    d_assignment = try $ do
+      lvalue <- expr
+      reservedOp ":="
+      rvalue <- expr
+      return $ lvalue := rvalue
+
+    d_expr :: Parser DStmt
+    d_expr = liftM DExpr expr
+
     d_if :: Parser DStmt
     d_if = do
       reserved "if"
@@ -414,7 +424,7 @@ statement = liftM DExpr expr
        val <- option DEmpty $ do
         reservedOp ":="
         expr
-       return $ var ::= val 
+       return $ var ::= val
 
     d_loop :: Parser DStmt
     d_loop = do
