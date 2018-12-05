@@ -259,7 +259,7 @@ language = javaStyle
             { P.caseSensitive  = True
             , P.reservedNames = [ "true", "false"
                                 , "not", "and", "or", "xor"
-                                , "is", "func"
+                                , "is", "end", "func"
                                 ]
             , P.reservedOpNames = ["..", ".", "=>", ":="] ++
                                   (map show allSymbolicOps)
@@ -430,8 +430,17 @@ statements = statement `endBy` semi
 
 
 statement :: Parser DStmt
-statement = return $ DExpr $ DBool True
-
+statement = expr >>= return . DExpr
+     -- <|> decl
+     -- <|> ...
+-- TODO:
+-- Statement ::= Decl
+--             | Assignment
+--             | Expr
+--             | If
+--             | While
+--             | For
+--             | Loop
 
 expr :: Parser DExpr
 expr = buildExpressionParser table term
