@@ -170,7 +170,6 @@ data DTypeIndicator = DTypeInt
                     | DTypeTuple
                     | DTypeFunc
 
--- TODO: instance Show DTypeIndicator
 instance Show DTypeIndicator where
   show (DTypeInt) = "int"
   show (DTypeReal) = "real"
@@ -200,6 +199,11 @@ instance Show DExpr where
   show (DReal i) = show i
   show (DString contents) = "\"" ++ contents ++ "\""
   show (DArray items) = "[" ++ (intercalate ", " (map show items)) ++ "]"
+  show (DTuple items) =  "{" ++ (intercalate ", " (map printItem items)) ++ "}"
+    where
+        printItem :: (String, DExpr) -> String
+        printItem (k, v) = if null k then                     show v
+                                     else show k ++ " := " ++ show v
   show (DIndex lhs idx) = (show lhs) ++ "[" ++ (show idx) ++ "]"
   show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
   show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
