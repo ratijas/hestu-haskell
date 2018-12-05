@@ -204,7 +204,7 @@ instance Show DExpr where
     where
         printItem :: (String, DExpr) -> String
         printItem (k, v) = if null k then                     show v
-                                     else show k ++ " := " ++ show v
+                                     else k ++ " := " ++ show v
   show (DIndex lhs idx) = (show lhs) ++ "[" ++ (show idx) ++ "]"
   show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
   show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
