@@ -382,10 +382,10 @@ statements = statement `endBy` semi
 iterable :: Parser DIterable
 iterable = do
   exp1 <- expr
-  option ((DIterableExpr exp1)) $ try $ do
+  option (DIterableExpr exp1) $ try $ do
     reservedOp ".."
     exp2 <- expr
-    return (DIterableRange exp1 exp2)
+    return $ DIterableRange exp1 exp2
 
 
 statement :: Parser DStmt
@@ -453,14 +453,7 @@ statement = d_if
       b <- body
       reserved "end"
       return $ DFor var it b
--- TODO:
--- Statement ::= Decl
---             | Assignment
---             | Expr
---             | If
---             | While
---             | For
---             | Loop
+
 
 expr :: Parser DExpr
 expr = buildExpressionParser table term
