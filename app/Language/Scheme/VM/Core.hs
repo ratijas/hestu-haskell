@@ -204,7 +204,7 @@ language = javaStyle
                                 , "not", "and", "or", "xor"
                                 , "is", "end", "func"
                                 , "if", "then", "else"
-                                , "while", "for", "loop", "var"
+                                , "while", "for", "loop", "var", "in"
                                 ]
             , P.reservedOpNames = ["..", ".", "=>", ":="] ++
                                   (map show allSymbolicOps)
@@ -379,8 +379,18 @@ statements :: Parser [DStmt]
 statements = statement `endBy` semi
 
 
+iterable :: Parser DIterable
+iterable = do
+  exp1 <- expr
+  option ((DIterableExpr exp1)) $ try $ do
+    reservedOp ".."
+    exp2 <- expr
+    return (DIterableRange exp1 exp2)
+
+
 statement :: Parser DStmt
 statement = d_if
+        <|> d_for
         <|> d_while
         <|> d_decl
         <|> d_loop
@@ -433,6 +443,16 @@ statement = d_if
       reserved "end"
       return $ DWhile (DBool True) b
 
+    d_for :: Parser DStmt
+    d_for = do
+      reserved "for"
+      (var :: String) <- identifier
+      reserved "in"
+      it <- iterable
+      reserved "loop"
+      b <- body
+      reserved "end"
+      return $ DFor var it b
 -- TODO:
 -- Statement ::= Decl
 --             | Assignment
