@@ -235,7 +235,7 @@ naturalOrFloat = P.naturalOrFloat lexer
 commaSep       = P.commaSep lexer
 dot            = P.dot lexer
 reservedOp     = P.reservedOp lexer
-
+whiteSpace     = P.whiteSpace     lexer
 
 string :: Parser DExpr
 string = do
@@ -329,6 +329,21 @@ membering = try $ do
     >>= return . flip DMember
 
 
+typeChecking :: Parser (DExpr -> DExpr)
+typeChecking = try $ do
+  reserved "is"
+  typ <- typeIndicator
+  return $ DOp . (`IsInstance` typ)
+    where typeIndicator = (reserved "int"      >> return DTypeInt)
+                      <|> (reserved "real"     >> return DTypeReal)
+                      <|> (reserved "bool"     >> return DTypeBool)
+                      <|> (reserved "string"   >> return DTypeString)
+                      <|> (reserved "empty"    >> return DTypeEmpty)
+                      <|> (brackets whiteSpace >> return DTypeArray)
+                      <|> (braces   whiteSpace >> return DTypeTuple)
+                      <|> (reserved "func"     >> return DTypeFunc)
+
+
 expr :: Parser DExpr
 expr = buildExpressionParser table term
    <?> "expression"
@@ -354,6 +369,7 @@ termTail :: Parser (DExpr -> DExpr)
 termTail = calling
        <|> indexing
        <|> membering
+       <|> typeChecking
        <?> "term tail"
 
 
