@@ -195,6 +195,7 @@ language = javaStyle
             , P.reservedNames = [ "true", "false"
                                 , "not", "and", "or", "xor"
                                 , "is", "end", "func"
+                                , "if", "then", "else"
                                 ]
             , P.reservedOpNames = ["..", ".", "=>", ":="] ++
                                   (map show allSymbolicOps)
@@ -370,9 +371,23 @@ statements = statement `endBy` semi
 
 
 statement :: Parser DStmt
-statement = expr >>= return . DExpr
+statement = liftM DExpr expr
+        <|> d_if
      -- <|> decl
      -- <|> ...
+  where
+    d_if :: Parser DStmt
+    d_if = do
+      reserved "if"
+      cond <- expr
+      reserved "then"
+      body1 <- body
+      reserved "else"
+      body2 <- body
+      reserved "end"
+      return $ DIf cond body1 body2
+
+
 -- TODO:
 -- Statement ::= Decl
 --             | Assignment
