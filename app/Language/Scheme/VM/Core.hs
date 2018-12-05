@@ -225,7 +225,7 @@ instance Show DExpr where
   show (DInt i) = show i
   show (DReal i) = show i
   show (DString contents) = "\"" ++ contents ++ "\""
-  show (DFunc args body) = "func(" ++ (intercalate ", " args) ++ ") is  " ++ show body ++ " end"
+  show (DFunc args body) = "func(" ++ (intercalate ", " args) ++ ") is " ++ show body ++ " end"
   show (DArray items) = "[" ++ (intercalate ", " (map show items)) ++ "]"
   show (DTuple items) =  "{" ++ (intercalate ", " (map printItem items)) ++ "}"
     where
