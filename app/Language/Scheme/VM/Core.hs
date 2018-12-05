@@ -228,7 +228,6 @@ readOrThrowD parser input = case parse parser "d" input of
     Right val -> return val
 
 
-
 -- The lexer
 
 language = javaStyle
