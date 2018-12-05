@@ -145,6 +145,7 @@ data DTypeIndicator = DTypeInt
                     | DTypeTuple
                     | DTypeFunc
 
+
 instance Show DTypeIndicator where
   show (DTypeInt) = "int"
   show (DTypeReal) = "real"
