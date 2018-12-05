@@ -346,6 +346,16 @@ typeChecking = try $ do
                       <|> (reserved "func"     >> return DTypeFunc)
 
 
+
+literal :: Parser DExpr
+literal = array
+--    <|> tuple
+
+
+array :: Parser DExpr
+array = brackets (commaSep expr) >>= return . DArray
+
+
 expr :: Parser DExpr
 expr = buildExpressionParser table term
    <?> "expression"
@@ -364,6 +374,7 @@ term = parser
 primary :: Parser DExpr
 primary = parens expr
       <|> primitive
+      <|> literal
       <?> "term primary"
 
 
