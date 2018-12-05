@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 
 module Language.Scheme.VM.Core where
 
@@ -349,11 +350,27 @@ typeChecking = try $ do
 
 literal :: Parser DExpr
 literal = array
---    <|> tuple
+      <|> tuple
 
 
 array :: Parser DExpr
 array = brackets (commaSep expr) >>= return . DArray
+
+
+tuple :: Parser DExpr
+tuple = do
+  (items :: [(String, DExpr)]) <- braces (commaSep item)
+  return $ DTuple items
+    where item :: Parser (String, DExpr)
+          item = do
+            k <- key
+            v <- expr
+            return (k, v)
+          key :: Parser String
+          key = option "" $ try $ do
+            k <- identifier
+            reservedOp ":="
+            return k
 
 
 expr :: Parser DExpr
