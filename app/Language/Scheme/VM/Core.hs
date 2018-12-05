@@ -383,7 +383,8 @@ statement :: Parser DStmt
 statement = liftM DExpr expr
         <|> d_if
         <|> d_while
-        <|> decl
+        <|> d_decl
+        <|> d_loop
      -- <|> ...
   where
     d_if :: Parser DStmt
@@ -405,15 +406,23 @@ statement = liftM DExpr expr
       b <- body
       reserved "end"
       return $ DWhile cond b
-    decl :: Parser DStmt
-    decl = do
+
+    d_decl :: Parser DStmt
+    d_decl = do
        reserved "var"
        var <- identifier
        val <- option DEmpty $ do
         reservedOp ":="
         expr
-       return $ var ::= val
- 
+       return $ var ::= val 
+
+    d_loop :: Parser DStmt
+    d_loop = do
+      reserved "loop"
+      b <- body
+      reserved "end"
+      return $ DWhile (DBool True) b
+
 -- TODO:
 -- Statement ::= Decl
 --             | Assignment
