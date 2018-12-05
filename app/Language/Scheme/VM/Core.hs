@@ -96,10 +96,6 @@ parseQuoted = do
 -- *** DExpr
 
 
--- data DExpr = DOp
---            | DTerm
-
-
 data DExpr -- | *** Primitives
            = DAtom String         -- ^ Identifier
            | DBool Bool           -- ^ Boolean
@@ -111,20 +107,43 @@ data DExpr -- | *** Primitives
            | DCall DExpr [DExpr]  -- ^ Function call via PARENS
            | DMember DExpr (Either String Int)
                                   -- ^ Member access via DOT operator
-           | DOp                  -- ^ Operation via one of predefined operators
+           | DOp DOp              -- ^ Operation via one of predefined operators
 
 
-data DBinaryOp = DPlus
-               | DMinus
+data DBinaryOp = DAnd
+               | DOr
+               | DXor
+               | DAdd
+               | DSub
                | DMul
                | DDiv
-               | DNot
                | DLT
                | DGT
                | DLE
                | DGE
                | DEqual
                | DNotEqual
+               deriving Enum
+
+
+instance Show DBinaryOp where
+  show DAnd      = "and"
+  show DOr       = "or"
+  show DXor      = "xor"
+  show DAdd      = "+"
+  show DSub      = "-"
+  show DMul      = "*"
+  show DDiv      = "/"
+  show DLT       = "<"
+  show DGT       = ">"
+  show DLE       = "<="
+  show DGE       = ">="
+  show DEqual    = "="
+  show DNotEqual = "/="
+
+
+allSymbolicOps :: [DBinaryOp]
+allSymbolicOps = [DAdd ..]
 
 
 data DUnaryOp = DUnaryMinus
@@ -134,8 +153,8 @@ data DUnaryOp = DUnaryMinus
 
 instance Show DUnaryOp where
   show DUnaryMinus = "-"
-  show DUnaryPlus = "+"
-  show DUnaryNot = "not "
+  show DUnaryPlus  = "+"
+  show DUnaryNot   = "not "
 
 
 data DTypeIndicator = DTypeInt
@@ -146,11 +165,20 @@ data DTypeIndicator = DTypeInt
                     | DTypeArray
                     | DTypeTuple
                     | DTypeFunc
+                    deriving (Show)
+
+-- TODO: instance Show DTypeIndicator
 
 
 data DOp = UnaryOp DUnaryOp DExpr
-         | BinaryOp DBinaryOp DExpr DExpr
-         | IsInstance DExpr DTypeIndicator
+         | BinaryOp DExpr DBinaryOp DExpr
+         | DExpr `IsInstance` DTypeIndicator
+
+
+instance Show DOp where
+  show (UnaryOp op expr)      = "(" ++ (show op) ++ (show expr) ++ ")"
+  show (BinaryOp lhs op rhs)  = "(" ++ (show lhs) ++ " " ++ (show op) ++ " " ++ (show rhs) ++ ")"
+  show (lhs `IsInstance` rhs) = "(" ++ (show lhs) ++ " is " ++ (show rhs) ++ ")"
 
 
 instance Show DExpr where
@@ -163,6 +191,7 @@ instance Show DExpr where
   show (DIndex lhs idx) = (show lhs) ++ "[" ++ (show idx) ++ "]"
   show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
   show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
+  show (DOp op) = show op
 
 
 -- *** DExpr Parser
@@ -187,8 +216,11 @@ readOrThrowD parser input = case parse parser "d" input of
 
 language = javaStyle
             { P.caseSensitive  = True
-            , P.reservedNames = []
-            , P.reservedOpNames = ["."]
+            , P.reservedNames = [ "true", "false"
+                                , "not", "and", "or", "xor"
+                                , "is"
+                                ]
+            , P.reservedOpNames = "." : (map show allSymbolicOps)
             }
 
 lexer          = P.makeTokenParser javaStyle
@@ -325,8 +357,12 @@ termTail = calling
        <?> "term tail"
 
 
-table = [[]]
+table = [[ prefix (reservedOp "-") DUnaryMinus
+         , prefix (reservedOp "+") DUnaryPlus
+         , prefix (reserved "not") DUnaryNot
+         ]]
 
+prefix parser op = Prefix (do{ parser; return $ DOp . UnaryOp op })
 -- table   = [[prefix "-" negate, prefix "+" id ]
 --          , [postfix "++" (+1)]
 --          , [binary "*" (*) AssocLeft, binary "/" (div) AssocLeft ]
