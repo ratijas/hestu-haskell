@@ -4,8 +4,7 @@ import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import System.Environment
 
-import Language.Scheme.VM.REPL
-import Language.Scheme.VM.Core
+import Language.Hestu.Core
 
 -- main :: IO ()
 -- main = do args <- getArgs
@@ -17,4 +16,5 @@ import Language.Scheme.VM.Core
 main :: IO ()
 main = do args <- liftIO $ getArgs
           let script = args !! 0
-          (runIOThrows $ liftM show $ (liftThrows $ readDProgram script)) >>= putStrLn
+          putStrLn $ readBody script
+          -- (runIOThrows $ liftM show $ (liftThrows $ readDProgram script)) >>= putStrLn
