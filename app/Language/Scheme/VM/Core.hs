@@ -104,17 +104,17 @@ instance Show DProgram where
 
 data DStmt = String ::= DExpr            -- ^ Declaration
            | DExpr   := DExpr            -- ^ Assignment
-           | DExpr DExpr                 -- ^ Wrapper for an expression.
+           | DExpr DExpr                 -- ^ Wrapper for an expression
            | DIf DExpr DBody DBody       -- ^ If expr then body else body end
            | DWhile DExpr DBody          -- ^ While ... loop ... end
-           | DFor String DIterable DBody -- ^ For ident in lower..upper loop ... end
+           | DFor String DIterable DBody -- ^ For ident in iter loop ... end
            | DLoop DBody                 -- ^ Loop forever
            deriving Show
            -- TODO
 
 
-data DIterable = DIterableExpr DExpr
-               | DIterableRange DExpr DExpr
+data DIterable = DIterableExpr DExpr        -- ^ Wrapper for an expression
+               | DIterableRange DExpr DExpr -- ^ Range lower..upper
                deriving Show
                -- TODO
 
