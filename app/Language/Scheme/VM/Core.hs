@@ -51,7 +51,7 @@ instance Show DIterable where
 
 newtype DBody = DBody [DStmt]
 instance Show DBody where
-  show (DBody stmts) = intercalate ";\n" (map show stmts)
+  show (DBody stmts) = intercalate ";\n" (map show stmts) ++ ";"
 
 
 data DExpr -- | *** Primitives
