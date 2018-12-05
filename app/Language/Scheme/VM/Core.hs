@@ -102,6 +102,10 @@ data DExpr -- | *** Primitives
            | DInt Integer         -- ^ Integer
            | DReal Double         -- ^ Floating point
            | DString String       -- ^ String (sequence of bytes)
+           -- | *** Container literals
+           | DArray [DExpr]       -- ^ Array literal via BRACKETS
+           | DTuple [(String, DExpr)]
+                                  -- ^ Tuple literal via BRACES
            -- | *** Operations
            | DIndex DExpr DExpr   -- ^ Indexing via BRACKETS
            | DCall DExpr [DExpr]  -- ^ Function call via PARENS
@@ -195,6 +199,7 @@ instance Show DExpr where
   show (DInt i) = show i
   show (DReal i) = show i
   show (DString contents) = "\"" ++ contents ++ "\""
+  show (DArray items) = "[" ++ (intercalate ", " (map show items)) ++ "]"
   show (DIndex lhs idx) = (show lhs) ++ "[" ++ (show idx) ++ "]"
   show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
   show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
