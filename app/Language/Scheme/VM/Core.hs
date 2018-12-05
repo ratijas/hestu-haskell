@@ -94,7 +94,7 @@ parseQuoted = do
     return $ List [Atom "quote", x]
 
 
--- *** D Parser
+-- *** D AST
 
 
 newtype DProgram = DProgram DBody
@@ -124,9 +124,6 @@ instance Show DBody where
   show (DBody stmts) = intercalate ";\n" (map show stmts)
 
 
--- *** DExpr
-
-
 data DExpr -- | *** Primitives
            = DAtom String         -- ^ Identifier
            | DBool Bool           -- ^ Boolean
@@ -149,6 +146,26 @@ data DExpr -- | *** Primitives
            | DOp DOp              -- ^ Operation via one of predefined operators
 
 
+instance Show DExpr where
+  show (DAtom name) = name
+  show (DBool True) = "true"
+  show (DBool False) = "false"
+  show (DInt i) = show i
+  show (DReal i) = show i
+  show (DString contents) = "\"" ++ contents ++ "\""
+  show (DFunc args body) = "func(" ++ (intercalate ", " args) ++ ") is " ++ show body ++ " end"
+  show (DArray items) = "[" ++ (intercalate ", " (map show items)) ++ "]"
+  show (DTuple items) =  "{" ++ (intercalate ", " (map printItem items)) ++ "}"
+    where
+        printItem :: (String, DExpr) -> String
+        printItem (k, v) = if null k then                     show v
+                                     else k ++ " := " ++ show v
+  show (DIndex lhs idx) = (show lhs) ++ "[" ++ (show idx) ++ "]"
+  show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
+  show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
+  show (DOp op) = show op
+
+
 data DBinaryOp = DAnd
                | DOr
                | DXor
@@ -163,7 +180,6 @@ data DBinaryOp = DAnd
                | DEqual
                | DNotEqual
                deriving Enum
-
 
 
 instance Show DBinaryOp where
@@ -216,6 +232,7 @@ instance Show DTypeIndicator where
   show (DTypeTuple) = "{}"
   show (DTypeFunc) = "func"
 
+
 data DOp = DUnaryOp DUnaryOp DExpr
          | DBinaryOp DExpr DBinaryOp DExpr
          | DExpr `IsInstance` DTypeIndicator
@@ -227,27 +244,7 @@ instance Show DOp where
   show (lhs `IsInstance` rhs) = "(" ++ (show lhs) ++ " is " ++ (show rhs) ++ ")"
 
 
-instance Show DExpr where
-  show (DAtom name) = name
-  show (DBool True) = "true"
-  show (DBool False) = "false"
-  show (DInt i) = show i
-  show (DReal i) = show i
-  show (DString contents) = "\"" ++ contents ++ "\""
-  show (DFunc args body) = "func(" ++ (intercalate ", " args) ++ ") is " ++ show body ++ " end"
-  show (DArray items) = "[" ++ (intercalate ", " (map show items)) ++ "]"
-  show (DTuple items) =  "{" ++ (intercalate ", " (map printItem items)) ++ "}"
-    where
-        printItem :: (String, DExpr) -> String
-        printItem (k, v) = if null k then                     show v
-                                     else k ++ " := " ++ show v
-  show (DIndex lhs idx) = (show lhs) ++ "[" ++ (show idx) ++ "]"
-  show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
-  show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
-  show (DOp op) = show op
-
-
--- *** DExpr Parser
+-- *** D Parser
 
 
 readDProgram :: String -> ThrowsError DProgram
