@@ -74,6 +74,7 @@ data DExpr -- | *** Primitives
            | DMember DExpr (Either String Int)
                                   -- ^ Member access via DOT operator
            | DOp DOp              -- ^ Operation via one of predefined operators
+           | DEmpty
 
 
 instance Show DExpr where
@@ -203,7 +204,7 @@ language = javaStyle
                                 , "not", "and", "or", "xor"
                                 , "is", "end", "func"
                                 , "if", "then", "else"
-                                , "while", "for", "loop"
+                                , "while", "for", "loop", "var"
                                 ]
             , P.reservedOpNames = ["..", ".", "=>", ":="] ++
                                   (map show allSymbolicOps)
@@ -382,7 +383,7 @@ statement :: Parser DStmt
 statement = liftM DExpr expr
         <|> d_if
         <|> d_while
-     -- <|> decl
+        <|> decl
      -- <|> ...
   where
     d_if :: Parser DStmt
@@ -404,7 +405,15 @@ statement = liftM DExpr expr
       b <- body
       reserved "end"
       return $ DWhile cond b
-
+    decl :: Parser DStmt
+    decl = do
+       reserved "var"
+       var <- identifier
+       val <- option DEmpty $ do
+        reservedOp ":="
+        expr
+       return $ var ::= val
+ 
 -- TODO:
 -- Statement ::= Decl
 --             | Assignment
