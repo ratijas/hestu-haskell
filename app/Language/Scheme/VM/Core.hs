@@ -94,6 +94,27 @@ parseQuoted = do
     return $ List [Atom "quote", x]
 
 
+-- *** D Parser
+
+data DStmt = String ::= DExpr
+           | DExpr := DExpr
+           | DExpr DExpr
+           | DIf DExpr DBody DBody
+           | DWhile DExpr DBody
+           | DFor String DIterable DBody
+           | DLoop DBody
+
+
+data DIterable = DIterableExpr DExpr
+               | DIterableRange DExpr DExpr
+
+
+newtype DBody = DBody [DStmt]
+
+instance Show DBody where
+  show = const "..."
+
+
 -- *** DExpr
 
 
@@ -103,6 +124,10 @@ data DExpr -- | *** Primitives
            | DInt Integer         -- ^ Integer
            | DReal Double         -- ^ Floating point
            | DString String       -- ^ String (sequence of bytes)
+           | DFunc { d_params :: [String]
+                   , d_body :: [DStmt]
+                   -- , d_closure :: Env
+                   }              -- ^ Function literal via "func" keyword
            -- | *** Container literals
            | DArray [DExpr]       -- ^ Array literal via BRACKETS
            | DTuple [(String, DExpr)]
