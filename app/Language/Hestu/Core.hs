@@ -895,11 +895,15 @@ builtinLength args = throwError $ NumArgs 1 args
 
 
 ioPrimitives :: [(String, [DExpr] -> IOThrowsError DExpr)]
-ioPrimitives = [("print", builtinPrint)]
+ioPrimitives = [("print", builtinPrint False),
+                ("println", builtinPrint True)]
 
 
-builtinPrint :: [DExpr] -> IOThrowsError DExpr
-builtinPrint xs = (liftIO $ putStrLn $ unwords $ map show xs) >> return DEmpty
+builtinPrint :: Bool -> [DExpr] -> IOThrowsError DExpr
+builtinPrint False [(DString s)] = (liftIO $ putStr s) >> return DEmpty
+builtinPrint True [(DString s)] = (liftIO $ putStrLn s) >> return DEmpty
+builtinPrint False xs = (liftIO $ putStr $ unwords $ map show xs) >> return DEmpty
+builtinPrint True xs = (liftIO $ putStrLn $ unwords $ map show xs) >> return DEmpty
 
 
 primitiveBindings :: IO Env
