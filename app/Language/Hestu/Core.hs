@@ -214,10 +214,11 @@ program = liftM DProgram (whiteSpace >> body <* eof)
 
 string :: Parser DExpr
 string = do
-                char '"'
-                x <- many $ noneOf "\""
-                char '"'
-                return $ DString x
+  char '"'
+  x <- many $ noneOf "\""
+  char '"'
+  whiteSpace
+  return $ DString x
 
 
 atom :: Parser DExpr
