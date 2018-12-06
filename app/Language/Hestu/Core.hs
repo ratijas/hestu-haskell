@@ -659,8 +659,16 @@ data HestuError = NumArgs Integer [DExpr]
                 | NotFunction String String
                 | UnboundVar String String
                 | Default String
-                deriving Show
 
+instance Show HestuError where
+  show (NumArgs expected found) = "Expected " ++ show expected
+                                       ++ "  args; found values " ++ show found
+  show (TypeMismatch expected found) = "Invalid type: expected " ++ expected
+                                       ++ ", found " ++ show found
+  show (Parser parseErr) = "Parse error at " ++ show parseErr
+  show (NotFunction message func) = message ++ ": " ++ show func
+  show (UnboundVar  message varname)  = message ++ ": " ++ varname
+  show (Default str) = "unknown error. " ++ str
 
 type ThrowsError = Either HestuError
 
