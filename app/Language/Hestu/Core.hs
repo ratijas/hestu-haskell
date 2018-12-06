@@ -255,7 +255,7 @@ membering :: Parser (DExpr -> DExpr)
 membering = try $ do
   dot
   choice [ identifier >>= return . Left
-         , decimal >>= return . Right . fromIntegral
+         , (decimal <* whiteSpace) >>= return . Right . fromIntegral
          ]
     >>= return . flip DMember
 
@@ -514,14 +514,16 @@ eval val@(DTuple xs) = DTuple $ zip keys (map eval values)
 
 eval (DIndex arrayExpr indexExpr) =
   let array = eval arrayExpr
+      list = case array of
+        DArray arr -> arr
+        DString str -> (map (DString . return) str)
+        _ -> error "type error: index can only be applied to arrays"
       index = eval indexExpr
-    in case array of
-      DArray arr -> case index of
-          DInt idx | 0 <= i && i < length arr -> arr !! i
-                   | otherwise -> error "index error: index out of range"
+    in case index of
+      DInt idx | 0 <= i && i < length list -> list !! i
+               | otherwise -> error "index error: index out of range"
             where i = fromIntegral idx
-          _  -> error "type error: index must be int"
-      _ -> error "type error: index can only be applied to arrays"
+      _  -> error "type error: index must be int"
 
 eval (DMember tupleExpr index) =
   let tuple = eval tupleExpr
@@ -534,6 +536,47 @@ eval (DMember tupleExpr index) =
                   | otherwise -> error "attribute error: index out of range"
       _ -> error "type error: member access can only be applied to tuples"
 
+eval (DOp (DUnaryOp operator expr)) =
+  let operand = eval expr
+    in unaryOperation operator operand
+
+
+eval (DOp (DBinaryOp lhsExpr op rhsExpr)) =
+  let lhs = eval lhsExpr
+      rhs = eval lhsExpr
+    in binaryOperation lhs op rhs
+
+eval (DOp (expr `IsInstance` typ)) =
+  let val = eval expr
+    in DBool $ val `isInstance` typ
+
+
+unaryOperation :: DUnaryOp -> DExpr -> DExpr
+unaryOperation DUnaryMinus (DInt operand) = DInt $ operand * (-1)
+unaryOperation DUnaryMinus (DReal operand) = DReal $ operand * (-1)
+unaryOperation DUnaryPlus val@(DInt operand) = val
+unaryOperation DUnaryPlus val@(DReal operand) = val
+unaryOperation DUnaryNot (DBool operand) = DBool $ not operand
+unaryOperation _ _ = error "type error: wrong type for unary operation"
+
+
+binaryOperation :: DExpr -> DBinaryOp -> DExpr -> DExpr
+binaryOperation lhs op rhs = DEmpty
+
+
+isInstance :: DExpr -> DTypeIndicator -> Bool
+(DInt _)   `isInstance` DTypeInt = True
+(DReal _)  `isInstance` DTypeReal = True
+(DBool _)  `isInstance` DTypeBool = True
+(DString _) `isInstance` DTypeString = True
+DEmpty     `isInstance` DTypeEmpty = True
+(DArray _) `isInstance` DTypeArray = True
+(DTuple _) `isInstance` DTypeTuple = True
+(DFunc {}) `isInstance` DTypeFunc = True
+_ `isInstance` _ = False
+
+
+-- data DOp = DBinaryOp DExpr DBinaryOp DExpr
 
 
 -- data DExpr -- | *** Primitives
