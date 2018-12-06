@@ -1,16 +1,17 @@
-t := [1, 4, 6, 8, 9, 11]
-n := 6
+var t := [8, 1, 6, 4, 9, 11];
+var n := 6;
 var sort := func(arr, n) is
     for i in 0 .. (n - 1) loop
         for j in 0 .. (n - i - 1) loop
-            if (arr[j] > arr[j + 1] then
+            if (arr[j] > arr[j + 1]) then
                 var tmp := arr[j];
                 arr[j] := arr[j + 1];
                 arr[j + 1] := tmp;
-             else true
+             else
+             {};
              end;
         end;
     end;
-    arr
+    arr;
 end;
-print sort(t, n)
+sort(t, n);

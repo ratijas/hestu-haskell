@@ -1,1 +1,0 @@
-(define xyz 42)

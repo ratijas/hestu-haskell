@@ -1,0 +1,11 @@
+var counter := func(count) is
+    func(x) is
+        count := count + x;
+    end;
+end;
+
+var my := counter(42);
+
+my(0);
+my(10);
+my(5); // should be 57
