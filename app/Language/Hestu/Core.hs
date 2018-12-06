@@ -497,44 +497,44 @@ readBody = readAny body
 -- eval & apply
 
 
-execBody :: DBody -> ThrowsError DExpr
-execBody (DBody body) = do
-  xs <- mapM exec body
+execBody :: Env -> DBody -> IOThrowsError DExpr
+execBody env (DBody body) = do
+  xs <- mapM (execStmt env) body
   return $ last (DEmpty : xs)
 
 
-exec :: DStmt -> ThrowsError DExpr
-exec (DExpr expr) = eval expr
+execStmt :: Env -> DStmt -> IOThrowsError DExpr
+execStmt env (DExpr expr) = eval env expr
 
 
-eval :: DExpr -> ThrowsError DExpr
-eval DEmpty = throwError Yahaha
-eval val@(DBool _)   = return val
-eval val@(DInt _)    = return val
-eval val@(DReal _)   = return val
-eval val@(DString _) = return val
-eval val@(DArray xs) = mapM eval xs >>= return . DArray
-eval val@(DTuple xs) = do
-  vals <- mapM eval values
+eval :: Env -> DExpr -> IOThrowsError DExpr
+eval env DEmpty = throwError Yahaha
+eval env val@(DBool _)   = return val
+eval env val@(DInt _)    = return val
+eval env val@(DReal _)   = return val
+eval env val@(DString _) = return val
+eval env val@(DArray xs) = mapM (eval env) xs >>= return . DArray
+eval env val@(DTuple xs) = do
+  vals <- mapM (eval env) values
   return $ DTuple $ zip keys vals
   where keys = (map fst xs)
         values = (map snd xs)
 
-eval (DIndex arrayExpr indexExpr) = do
-  array <- eval arrayExpr
+eval env (DIndex arrayExpr indexExpr) = do
+  array <- eval env arrayExpr
   list <- case array of
     DArray arr -> return arr
     DString str -> return $ map (DString . return) str
     _ -> throwError $ TypeMismatch "array" (toTypeIndicator array)
-  index <- eval indexExpr
+  index <- eval env indexExpr
   case index of
     DInt idx | 0 <= i && i < length list -> return $ list !! i
              | otherwise                 -> throwError $ AttributeError array $ show idx
       where i = fromIntegral idx
     _  -> throwError $ TypeMismatch "int" (toTypeIndicator index)
 
-eval (DMember tupleExpr index) = do
-  tuple <- eval tupleExpr
+eval env (DMember tupleExpr index) = do
+  tuple <- eval env tupleExpr
   case tuple of
     DTuple tup -> case index of
       Left name -> case lookup name tup of
@@ -544,17 +544,17 @@ eval (DMember tupleExpr index) = do
                 | otherwise -> throwError $ AttributeError tuple $ show idx
     _ -> throwError $ TypeMismatch "tuple" (toTypeIndicator tuple)
 
-eval (DOp (DUnaryOp operator expr)) = do
-  operand <- eval expr
-  unaryOperation operator operand
+eval env (DOp (DUnaryOp operator expr)) = do
+  operand <- eval env expr
+  liftThrows $ unaryOperation operator operand
 
-eval (DOp (DBinaryOp lhsExpr op rhsExpr)) = do
-  lhs <- eval lhsExpr
-  rhs <- eval rhsExpr
-  binaryOperation lhs op rhs
+eval env (DOp (DBinaryOp lhsExpr op rhsExpr)) = do
+  lhs <- eval env lhsExpr
+  rhs <- eval env rhsExpr
+  liftThrows $ binaryOperation lhs op rhs
 
-eval (DOp (expr `IsInstance` typ)) = do
-  val <- eval expr
+eval env (DOp (expr `IsInstance` typ)) = do
+  val <- eval env expr
   return $ DBool $ val `isInstance` typ
 
 
@@ -709,3 +709,100 @@ trapError action = catchError action (return . show)
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
 
+
+-- *** IO Error Handling
+
+
+type IOThrowsError = ExceptT HestuError IO
+
+
+liftThrows :: ThrowsError a -> IOThrowsError a
+liftThrows (Left err) = throwError err
+liftThrows (Right val) = return val
+
+
+runIOThrows :: IOThrowsError String -> IO String
+runIOThrows action = runExceptT (trapError action) >>= return . extractValue
+
+
+-- *** REPL
+
+
+evalAndPrint :: Env -> String -> IO ()
+evalAndPrint env script =  evalString env script >>= putStrLn
+
+
+evalString :: Env -> String -> IO String
+evalString env script = runIOThrows $ liftM show $ (liftThrows $ readBody script) >>= execBody env
+
+
+runOne :: String -> IO ()
+runOne expr = nullEnv >>= flip evalAndPrint expr
+
+
+runRepl :: IO ()
+runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Hestu>>> ") . evalAndPrint
+
+
+readPrompt :: String -> IO String
+readPrompt prompt = flushStr prompt >> getLine
+
+
+until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
+until_ pred prompt action = do
+   result <- prompt
+   if pred result
+      then return ()
+      else action result >> until_ pred prompt action
+
+
+flushStr :: String -> IO ()
+flushStr str = putStr str >> hFlush stdout
+
+
+-- *** Environment / Variables
+
+
+type Env = IORef [(String, IORef DExpr)]
+
+
+nullEnv :: IO Env
+nullEnv = newIORef []
+
+
+isBound :: Env -> String -> IO Bool
+isBound envRef var = readIORef envRef >>= return . isJust . lookup var
+
+
+getVar :: Env -> String -> IOThrowsError DExpr
+getVar envRef var = do env <- liftIO $ readIORef envRef
+                       maybe (throwError $ UnboundVar "Unbound variable" var)
+                             (liftIO . readIORef)
+                             (lookup var env)
+
+
+setVar :: Env -> String -> DExpr -> IOThrowsError DExpr
+setVar envRef var value = do env <- liftIO $ readIORef envRef
+                             maybe (throwError $ UnboundVar "Setting an unbound variable" var)
+                                   (liftIO . (flip writeIORef value))
+                                   (lookup var env)
+                             return value
+
+
+defineVar :: Env -> String -> DExpr -> IOThrowsError DExpr
+defineVar envRef var value = do
+     alreadyDefined <- liftIO $ isBound envRef var
+     if alreadyDefined
+        then setVar envRef var value >> return value
+        else liftIO $ do
+             valueRef <- newIORef value
+             env <- readIORef envRef
+             writeIORef envRef ((var, valueRef) : env)
+             return value
+
+
+bindVars :: Env -> [(String, DExpr)] -> IO Env
+bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
+     where extendEnv bindings env = liftM (++ env) (mapM addBinding bindings)
+           addBinding (var, value) = do ref <- newIORef value
+                                        return (var, ref)
