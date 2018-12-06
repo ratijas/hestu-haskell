@@ -508,6 +508,9 @@ execStmt env (DExpr expr) = eval env expr
 execStmt env (name ::= expr) = do
   val <- eval env expr
   defineVar env name val
+execStmt env ((DAtom var) := expr) = do
+  val <- eval env expr
+  setVar env var val
 
 eval :: Env -> DExpr -> IOThrowsError DExpr
 eval env DEmpty = throwError Yahaha
