@@ -505,7 +505,9 @@ execBody env (DBody body) = do
 
 execStmt :: Env -> DStmt -> IOThrowsError DExpr
 execStmt env (DExpr expr) = eval env expr
-
+execStmt env (name ::= expr) = do
+  val <- eval env expr
+  setVar env name val
 
 eval :: Env -> DExpr -> IOThrowsError DExpr
 eval env DEmpty = throwError Yahaha
