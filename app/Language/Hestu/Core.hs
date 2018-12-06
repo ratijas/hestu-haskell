@@ -512,13 +512,27 @@ eval val@(DTuple xs) = DTuple $ zip keys (map eval values)
   where keys = (map fst xs)
         values = (map snd xs)
 
-eval (DIndex (DArray array) (DInt idx)) = array !! (fromIntegral idx)
--- eval (DIndex (DArray _) _) = -- TODO: type error: index must be int
--- eval (DIndex _ _) = -- TODO: type error: index can only be applied to arrays
+eval (DIndex arrayExpr indexExpr) =
+  let array = eval arrayExpr
+      index = eval indexExpr
+    in case array of
+      DArray arr -> case index of
+          DInt idx | 0 <= i && i < length arr -> arr !! i
+                   | otherwise -> error "index error: index out of range"
+            where i = fromIntegral idx
+          _  -> error "type error: index must be int"
+      _ -> error "type error: index can only be applied to arrays"
 
-eval (DMember (DTuple tuple) (Left name)) = fromJust $ lookup name tuple
-eval (DMember (DTuple tuple) (Right idx)) = snd $ tuple !! idx
--- TODO: eval expressions before pattern matching
+eval (DMember tupleExpr index) =
+  let tuple = eval tupleExpr
+    in case tuple of
+      DTuple tup -> case index of
+        Left name -> case lookup name tup of
+          Just x -> x
+          _      -> error $ "attribute error: no such field: " ++ show name
+        Right idx | 0 <= idx && idx < length tup -> snd $ tup !! idx
+                  | otherwise -> error "attribute error: index out of range"
+      _ -> error "type error: member access can only be applied to tuples"
 
 
 
