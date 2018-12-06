@@ -516,9 +516,9 @@ eval (DIndex (DArray array) (DInt idx)) = array !! (fromIntegral idx)
 -- eval (DIndex (DArray _) _) = -- TODO: type error: index must be int
 -- eval (DIndex _ _) = -- TODO: type error: index can only be applied to arrays
 
-
-
-
+eval (DMember (DTuple tuple) (Left name)) = fromJust $ lookup name tuple
+eval (DMember (DTuple tuple) (Right idx)) = snd $ tuple !! idx
+-- TODO: eval expressions before pattern matching
 
 
 
