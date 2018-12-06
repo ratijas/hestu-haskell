@@ -80,6 +80,8 @@ data DExpr -- | *** Primitives
                    , d_body :: DBody
                    , d_closure :: Env
                    }              -- ^ Function instance with closure
+           | DPrimitiveFunc ([DExpr] -> ThrowsError DExpr)
+           | DPrimitiveIOFunc ([DExpr] -> IOThrowsError DExpr)
            | DEmpty
 
 
@@ -102,6 +104,8 @@ instance Show DExpr where
   show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
   show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
   show (DOp op) = show op
+  show (DPrimitiveFunc _) = "<primitive>"
+  show (DPrimitiveIOFunc _) = "<io>"
   show DEmpty = "<empty>"
 
 
@@ -623,8 +627,8 @@ apply (DFunc params body closure) args =
     else (liftIO $ bindVars closure $ zip params args) >>= exec
   where num = toInteger . length
         exec env = execBody env body
--- apply (PrimitiveFunc func) args = liftThrows $ func args
--- apply (IOFunc func) args = func args
+apply (DPrimitiveFunc func) args = liftThrows $ func args
+apply (DPrimitiveIOFunc func) args = func args
 apply notFunc _ = throwError $ NotFunction "Not a function" (show notFunc)
 
 
@@ -806,11 +810,11 @@ evalString env script = runIOThrows $ liftM show $ (liftThrows $ readBody script
 
 
 runOne :: String -> IO ()
-runOne script = nullEnv >>= flip evalAndPrint script
+runOne script = primitiveBindings >>= flip evalAndPrint script
 
 
 runRepl :: IO ()
-runRepl = nullEnv >>= until_ (== "quit") (readPrompt "Hestu>>> ") . evalAndPrint
+runRepl = primitiveBindings >>= until_ (== "quit") (readPrompt "Hestu>>> ") . evalAndPrint
 
 
 readPrompt :: String -> IO String
@@ -875,3 +879,30 @@ bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
      where extendEnv bindings env = liftM (++ env) (mapM addBinding bindings)
            addBinding (var, value) = do ref <- newIORef value
                                         return (var, ref)
+
+
+-- *** Primitives
+
+
+primitives :: [(String, [DExpr] -> ThrowsError DExpr)]
+primitives = [("length", builtinLength)]
+
+
+builtinLength :: [DExpr] -> ThrowsError DExpr
+builtinLength [(DArray items)] = return $ DInt $ fromIntegral $ length items
+builtinLength [notArray] = throwError $ TypeMismatch "array" (toTypeIndicator notArray)
+builtinLength args = throwError $ NumArgs 1 args
+
+
+ioPrimitives :: [(String, [DExpr] -> IOThrowsError DExpr)]
+ioPrimitives = [("print", builtinPrint)]
+
+
+builtinPrint :: [DExpr] -> IOThrowsError DExpr
+builtinPrint xs = (liftIO $ putStrLn $ unwords $ map show xs) >> return DEmpty
+
+
+primitiveBindings :: IO Env
+primitiveBindings = nullEnv >>= (flip bindVars (map (makeFunc DPrimitiveIOFunc) ioPrimitives
+                                             ++ map (makeFunc DPrimitiveFunc) primitives))
+     where makeFunc constructor (var, func) = (var, constructor func)
