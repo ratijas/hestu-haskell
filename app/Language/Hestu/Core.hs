@@ -698,6 +698,7 @@ instance Show HestuError where
   show (AttributeError object member) = "Attribute error: object " ++ (show object)
                                      ++ " has no attribute " ++ member
   show (Default str) = "unknown error. " ++ str
+  show (Yahaha) = "Ya-ha-ha!"
 
 type ThrowsError = Either HestuError
 
