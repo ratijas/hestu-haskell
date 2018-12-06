@@ -766,7 +766,7 @@ evalString env script = runIOThrows $ liftM show $ (liftThrows $ readBody script
 
 
 runOne :: String -> IO ()
-runOne expr = nullEnv >>= flip evalAndPrint expr
+runOne script = nullEnv >>= flip evalAndPrint script
 
 
 runRepl :: IO ()
