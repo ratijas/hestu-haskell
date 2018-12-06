@@ -89,6 +89,7 @@ instance Show DExpr where
   show (DReal i) = show i
   show (DString contents) = "\"" ++ contents ++ "\""
   show (DFuncLit args body) = "func(" ++ (intercalate ", " args) ++ ") is " ++ show body ++ " end"
+  show (DFunc args body closure) = "closure(" ++ (intercalate ", " args) ++ ") is " ++ show body ++ " end"
   show (DArray items) = "[" ++ (intercalate ", " (map show items)) ++ "]"
   show (DTuple items) =  "{" ++ (intercalate ", " (map printItem items)) ++ "}"
     where
@@ -765,7 +766,7 @@ evalString env script = runIOThrows $ liftM show $ (liftThrows $ readBody script
 
 
 runOne :: String -> IO ()
-runOne expr = nullEnv >>= flip evalAndPrint expr
+runOne script = nullEnv >>= flip evalAndPrint script
 
 
 runRepl :: IO ()
