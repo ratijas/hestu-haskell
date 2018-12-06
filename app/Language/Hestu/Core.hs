@@ -541,7 +541,6 @@ eval (DOp (DUnaryOp operator expr)) =
   let operand = eval expr
     in unaryOperation operator operand
 
-
 eval (DOp (DBinaryOp lhsExpr op rhsExpr)) =
   let lhs = eval lhsExpr
       rhs = eval rhsExpr
@@ -605,8 +604,13 @@ unpackReal (DReal real) = real
 
 
 d_add :: DExpr -> DExpr -> DExpr
-d_add _ _ = DEmpty
-
+d_add (DInt exp1) (DInt exp2) = DInt(exp1 + exp2)
+d_add (DReal exp1) (DReal exp2) = DReal(exp1 + exp2)
+d_add (DInt exp1) (DReal exp2) = DReal((fromIntegral exp1) + exp2)
+d_add (DReal exp1) (DInt exp2) = DReal(exp1 + (fromIntegral exp2))
+d_add (DString str1) (DString str2) = DString(str1 ++ str2)
+d_add (DTuple tuple1) (DTuple tuple2) = DTuple(tuple1 ++ tuple2)
+d_add (DArray arr1) (DArray arr2) = DArray(arr1 ++ arr2)
 
 d_sub :: DExpr -> DExpr -> DExpr
 d_sub _ _ = DEmpty
