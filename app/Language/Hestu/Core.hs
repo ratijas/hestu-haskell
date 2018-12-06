@@ -509,6 +509,7 @@ execStmt env (DExpr expr) = eval env expr
 
 eval :: Env -> DExpr -> IOThrowsError DExpr
 eval env DEmpty = throwError Yahaha
+eval env (DAtom atom)    = getVar env atom
 eval env val@(DBool _)   = return val
 eval env val@(DInt _)    = return val
 eval env val@(DReal _)   = return val
