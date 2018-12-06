@@ -475,32 +475,36 @@ binaryKeyword = binary . reserved
 
 -- Various readers for debugging
 
-readExpr :: String -> String
-readExpr input = case parse expr "Hestu" input of
-    Left err -> "No match: " ++ show err
-    Right val -> "Found " ++ show val
+
+readAny :: Parser a -> String -> ThrowsError a
+readAny parser input = case parse parser "Hestu" input of
+  Left err -> throwError $ Parser err
+  Right val -> return val
 
 
-readStmt :: String -> String
-readStmt input = case parse statement "Hestu" input of
-    Left err -> "No match: " ++ show err
-    Right val -> "Found " ++ show val
+readExpr :: String -> ThrowsError DExpr
+readExpr = readAny expr
 
 
-readBody :: String -> String
-readBody input = case parse body "Hestu" input of
-    Left err -> "No match: " ++ show err
-    Right val -> "Found " ++ show (execBody val)
+readStmt :: String -> ThrowsError DStmt
+readStmt = readAny statement
+
+
+readBody :: String -> ThrowsError DBody
+readBody = readAny body
 
 
 -- eval & apply
 
 
-execBody :: DBody -> DExpr
-execBody (DBody body) = last (DEmpty : (map exec body))
+execBody :: DBody -> ThrowsError DExpr
+execBody (DBody body) = do
+  xs <- mapM exec body
+  return $ last (DEmpty : xs)
 
-exec :: DStmt -> DExpr
-exec (DExpr expr) = eval expr
+
+exec :: DStmt -> ThrowsError DExpr
+exec (DExpr expr) = return $ eval expr
 
 
 eval :: DExpr -> DExpr
@@ -640,44 +644,24 @@ DEmpty     `isInstance` DTypeEmpty = True
 _ `isInstance` _ = False
 
 
--- data DOp = DBinaryOp DExpr DBinaryOp DExpr
-
--- data DBinaryOp = DAnd
---                | DOr
---                | DXor
-
---                | DAdd
---                | DSub
---                | DMul
---                | DDiv
-
---                | DLT
---                | DGT
---                | DLE
---                | DGE
---                | DEqual
---                | DNotEqual
+-- *** Error Handling
 
 
+data HestuError = NumArgs Integer [DExpr]
+                | TypeMismatch String DTypeIndicator
+                | Parser ParseError
+                | NotFunction String String
+                | UnboundVar String String
+                | Default String
+                deriving Show
 
--- data DExpr -- | *** Primitives
---            = DAtom String         -- ^ Identifier
---            | DBool Bool           -- ^ Boolean
---            | DInt Integer         -- ^ Integer
---            | DReal Double         -- ^ Floating point
---            | DString String       -- ^ String (sequence of bytes)
---            | DFunc { d_params :: [String]
---                    , d_body :: DBody
---                    -- , d_closure :: Env
---                    }              -- ^ Function literal via "func" keyword
---            -- | *** Container literals
---            | DArray [DExpr]       -- ^ Array literal via BRACKETS
---            | DTuple [(String, DExpr)]
---                                   -- ^ Tuple literal via BRACES
---            -- | *** Operations
---            | DIndex DExpr DExpr   -- ^ Indexing via BRACKETS
---            | DCall DExpr [DExpr]  -- ^ Function call via PARENS
---            | DMember DExpr (Either String Int)
---                                   -- ^ Member access via DOT operator
---            | DOp DOp              -- ^ Operation via one of predefined operators
---            | DEmpty
+
+type ThrowsError = Either HestuError
+
+
+trapError action = catchError action (return . show)
+
+
+extractValue :: ThrowsError a -> a
+extractValue (Right val) = val
+

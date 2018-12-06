@@ -16,5 +16,5 @@ import Language.Hestu.Core
 main :: IO ()
 main = do args <- liftIO $ getArgs
           let script = args !! 0
-          putStrLn $ readBody script
-          -- (runIOThrows $ liftM show $ (liftThrows $ readDProgram script)) >>= putStrLn
+          evaled <- return $ liftM show $ readBody script >>= execBody
+          putStrLn $ extractValue $ trapError evaled
