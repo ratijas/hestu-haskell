@@ -1,13 +1,3 @@
-for i in 4 loop (1 + 2); end;
-var a := func(x)=>x+10;
-var t := [];
-t[10] := func(y) is
-    for i in y loop
-    (1 + 2);
-    end;
-end;
-
-
 t := [1, 4, 6, 8, 9, 11]
 n := 6
 var sort := func(arr, n) is
@@ -21,4 +11,6 @@ var sort := func(arr, n) is
              end;
         end;
     end;
+    arr
 end;
+print sort(t, n)

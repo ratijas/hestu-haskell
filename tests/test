@@ -1,0 +1,12 @@
+#!/bin/bash
+stack exec scheme-parser-exe "$(cat test_1)"
+stack exec scheme-parser-exe "$(cat test_2)"
+stack exec scheme-parser-exe "$(cat test_3)"
+stack exec scheme-parser-exe "$(cat test_4)"
+stack exec scheme-parser-exe "$(cat test_5)"
+stack exec scheme-parser-exe "$(cat test_6)"
+stack exec scheme-parser-exe "$(cat test_7)"
+stack exec scheme-parser-exe "$(cat test_8)"
+stack exec scheme-parser-exe "$(cat test_10)"
+stack exec scheme-parser-exe "$(cat test_buble_sort)"
+

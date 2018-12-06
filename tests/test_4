@@ -1,0 +1,7 @@
+var a := func(x)=>x+10;
+var t := [];
+t[1] := func(y) is
+    for i in y loop
+    (1 + 2);
+    end;
+end;

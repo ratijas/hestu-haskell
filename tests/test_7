@@ -1,0 +1,4 @@
+var a := 0;
+while a < 1 loop
+a := 5 + 1;
+end;
