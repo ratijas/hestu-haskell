@@ -504,75 +504,84 @@ execBody (DBody body) = do
 
 
 exec :: DStmt -> ThrowsError DExpr
-exec (DExpr expr) = return $ eval expr
+exec (DExpr expr) = eval expr
 
 
-eval :: DExpr -> DExpr
-eval DEmpty = DEmpty -- TODO: EmptyRockException
-eval val@(DBool _) = val
-eval val@(DInt _) = val
-eval val@(DReal _) = val
-eval val@(DString _) = val
-eval val@(DArray xs) = DArray (map eval xs)
-eval val@(DTuple xs) = DTuple $ zip keys (map eval values)
+eval :: DExpr -> ThrowsError DExpr
+eval DEmpty = throwError Yahaha -- TODO: EmptyRockException
+eval val@(DBool _)   = return val
+eval val@(DInt _)    = return val
+eval val@(DReal _)   = return val
+eval val@(DString _) = return val
+eval val@(DArray xs) = mapM eval xs >>= return . DArray
+eval val@(DTuple xs) = do
+  vals <- mapM eval values
+  return $ DTuple $ zip keys vals
   where keys = (map fst xs)
         values = (map snd xs)
 
-eval (DIndex arrayExpr indexExpr) =
-  let array = eval arrayExpr
-      list = case array of
-        DArray arr -> arr
-        DString str -> (map (DString . return) str)
-        _ -> error "type error: index can only be applied to arrays"
-      index = eval indexExpr
-    in case index of
-      DInt idx | 0 <= i && i < length list -> list !! i
-               | otherwise -> error "index error: index out of range"
-            where i = fromIntegral idx
-      _  -> error "type error: index must be int"
+eval (DIndex arrayExpr indexExpr) = do
+  array <- eval arrayExpr
+  list <- case array of
+    DArray arr -> return arr
+    DString str -> return $ map (DString . return) str
+    _ -> throwError $ TypeMismatch "index can only be applied to arrays" DTypeEmpty -- TODO: DExpr to DTypeIndicator
+  index <- eval indexExpr
+  case index of
+    DInt idx | 0 <= i && i < length list -> return $ list !! i
+             | otherwise                 -> throwError $ Default "index out of range"
+      where i = fromIntegral idx
+    _  -> throwError $ TypeMismatch "index must be int" DTypeEmpty -- TODO
 
-eval (DMember tupleExpr index) =
-  let tuple = eval tupleExpr
-    in case tuple of
-      DTuple tup -> case index of
-        Left name -> case lookup name tup of
-          Just x -> x
-          _      -> error $ "attribute error: no such field: " ++ show name
-        Right idx | 0 <= idx && idx < length tup -> snd $ tup !! idx
-                  | otherwise -> error "attribute error: index out of range"
-      _ -> error "type error: member access can only be applied to tuples"
+eval (DMember tupleExpr index) = do
+  tuple <- eval tupleExpr
+  case tuple of
+    DTuple tup -> case index of
+      Left name -> case lookup name tup of
+        Just x -> return x
+        _      -> throwError $ Default $ "attribute error: no such field: " ++ show name
+      Right idx | 0 <= idx && idx < length tup -> return $ snd $ tup !! idx
+                | otherwise -> throwError $ Default $ "attribute error: index out of range"
+    _ -> throwError $ TypeMismatch "member access can only be applied to tuples" DTypeEmpty -- TODO
 
-eval (DOp (DUnaryOp operator expr)) =
-  let operand = eval expr
-    in unaryOperation operator operand
+eval (DOp (DUnaryOp operator expr)) = do
+  operand <- eval expr
+  unaryOperation operator operand
 
-eval (DOp (DBinaryOp lhsExpr op rhsExpr)) =
-  let lhs = eval lhsExpr
-      rhs = eval rhsExpr
-    in binaryOperation lhs op rhs
+eval (DOp (DBinaryOp lhsExpr op rhsExpr)) = do
+  lhs <- eval lhsExpr
+  rhs <- eval rhsExpr
+  binaryOperation lhs op rhs
 
-eval (DOp (expr `IsInstance` typ)) =
-  let val = eval expr
-    in DBool $ val `isInstance` typ
-
-
-unaryOperation :: DUnaryOp -> DExpr -> DExpr
-unaryOperation DUnaryMinus (DInt operand) = DInt $ operand * (-1)
-unaryOperation DUnaryMinus (DReal operand) = DReal $ operand * (-1)
-unaryOperation DUnaryPlus val@(DInt operand) = val
-unaryOperation DUnaryPlus val@(DReal operand) = val
-unaryOperation DUnaryNot (DBool operand) = DBool $ not operand
-unaryOperation _ _ = error "type error: wrong type for unary operation"
+eval (DOp (expr `IsInstance` typ)) = do
+  val <- eval expr
+  return $ DBool $ val `isInstance` typ
 
 
-binaryOperation :: DExpr -> DBinaryOp -> DExpr -> DExpr
-binaryOperation lhs op rhs = case lookup op boolOpFunc of
-  Just boolOp -> DBool $ boolOp (unpackBool lhs) (unpackBool rhs)
-  _ -> case lookup op equalityOpFunc of
-    Just eqOp -> DBool $ eqOp (unpackReal lhs) (unpackReal rhs)
-    _ -> case lookup op mathOpFunc of
-      Just mathOp -> mathOp lhs rhs
-      _ -> error "not implemented"
+unaryOperation :: DUnaryOp -> DExpr -> ThrowsError DExpr
+unaryOperation DUnaryMinus (DInt operand) = return $ DInt $ operand * (-1)
+unaryOperation DUnaryMinus (DReal operand) = return $ DReal $ operand * (-1)
+unaryOperation DUnaryPlus val@(DInt operand) = return $ val
+unaryOperation DUnaryPlus val@(DReal operand) = return $ val
+unaryOperation DUnaryNot (DBool operand) = return $ DBool $ not operand
+unaryOperation _ _ = throwError $ TypeMismatch "wrong type for unary operation" DTypeEmpty -- TODO
+
+
+binaryOperation :: DExpr -> DBinaryOp -> DExpr -> ThrowsError DExpr
+binaryOperation lhs op rhs =
+  case lookup op boolOpFunc of
+    Just boolOp -> do
+      l <- unpackBool lhs
+      r <- unpackBool rhs
+      return $ DBool $ boolOp l r
+    _ -> case lookup op equalityOpFunc of
+      Just eqOp -> do
+        l <- unpackReal lhs
+        r <- unpackReal rhs
+        return $ DBool $ eqOp l r
+      _ -> case lookup op mathOpFunc of
+        Just mathOp -> mathOp lhs rhs
+        _ -> throwError $ Default "not implemented"
 
 
 boolOpFunc :: [(DBinaryOp, Bool -> Bool -> Bool)]
@@ -590,53 +599,56 @@ equalityOpFunc = [(DLT, (<)),
                   (DNotEqual, (/=))]
 
 
-mathOpFunc :: [(DBinaryOp, DExpr -> DExpr -> DExpr)]
+mathOpFunc :: [(DBinaryOp, DExpr -> DExpr -> ThrowsError DExpr)]
 mathOpFunc = [(DAdd, d_add),
               (DSub, d_sub),
               (DMul, d_mul),
               (DDiv, d_div)]
 
 
-
-unpackBool :: DExpr -> Bool
-unpackBool (DBool b) = b
-unpackBool _ = error "TypeMismatch"
--- unpackBool notBool  = throwError $ TypeMismatch "boolean" notBool
+unpackBool :: DExpr -> ThrowsError Bool
+unpackBool (DBool b) = return b
+unpackBool notBool  = throwError $ TypeMismatch "boolean" DTypeEmpty -- TODO
 
 
-unpackReal :: DExpr -> Double
-unpackReal (DInt int) = fromIntegral int
-unpackReal (DReal real) = real
+unpackReal :: DExpr -> ThrowsError Double
+unpackReal (DInt int) = return $ fromIntegral int
+unpackReal (DReal real) = return real
+unpackReal notReal = throwError $ TypeMismatch "real" DTypeEmpty -- TODO
 
 
-d_add :: DExpr -> DExpr -> DExpr
-d_add (DInt exp1) (DInt exp2) = DInt(exp1 + exp2)
-d_add (DReal exp1) (DReal exp2) = DReal(exp1 + exp2)
-d_add (DInt exp1) (DReal exp2) = DReal((fromIntegral exp1) + exp2)
-d_add (DReal exp1) (DInt exp2) = DReal(exp1 + (fromIntegral exp2))
-d_add (DString str1) (DString str2) = DString(str1 ++ str2)
-d_add (DTuple tuple1) (DTuple tuple2) = DTuple(tuple1 ++ tuple2)
-d_add (DArray arr1) (DArray arr2) = DArray(arr1 ++ arr2)
+d_add :: DExpr -> DExpr -> ThrowsError DExpr
+d_add (DInt exp1)     (DInt exp2)     = return $ DInt(exp1 + exp2)
+d_add (DReal exp1)    (DReal exp2)    = return $ DReal(exp1 + exp2)
+d_add (DInt exp1)     (DReal exp2)    = return $ DReal((fromIntegral exp1) + exp2)
+d_add (DReal exp1)    (DInt exp2)     = return $ DReal(exp1 + (fromIntegral exp2))
+d_add (DString str1)  (DString str2)  = return $ DString(str1 ++ str2)
+d_add (DTuple tuple1) (DTuple tuple2) = return $ DTuple(tuple1 ++ tuple2)
+d_add (DArray arr1)   (DArray arr2)   = return $ DArray(arr1 ++ arr2)
+d_add _ _ = throwError $ TypeMismatch "add" DTypeEmpty -- TODO
 
-d_sub :: DExpr -> DExpr -> DExpr
-d_sub (DInt exp1) (DInt exp2) = DInt(exp1 - exp2)
-d_sub (DReal exp1) (DReal exp2) = DReal(exp1 - exp2)
-d_sub (DInt exp1) (DReal exp2) = DReal((fromIntegral exp1) - exp2)
-d_sub (DReal exp1) (DInt exp2) = DReal(exp1 - (fromIntegral exp2))
-
-
-d_mul :: DExpr -> DExpr -> DExpr
-d_mul (DInt exp1) (DInt exp2) = DInt(exp1 * exp2)
-d_mul (DReal exp1) (DReal exp2) = DReal(exp1 * exp2)
-d_mul (DInt exp1) (DReal exp2) = DReal((fromIntegral exp1) * exp2)
-d_mul (DReal exp1) (DInt exp2) = DReal(exp1 * (fromIntegral exp2))
+d_sub :: DExpr -> DExpr -> ThrowsError DExpr
+d_sub (DInt exp1)  (DInt exp2)  = return $ DInt(exp1 - exp2)
+d_sub (DReal exp1) (DReal exp2) = return $ DReal(exp1 - exp2)
+d_sub (DInt exp1)  (DReal exp2) = return $ DReal((fromIntegral exp1) - exp2)
+d_sub (DReal exp1) (DInt exp2)  = return $ DReal(exp1 - (fromIntegral exp2))
+d_sub _ _ = throwError $ TypeMismatch "sub" DTypeEmpty -- TODO
 
 
-d_div :: DExpr -> DExpr -> DExpr
-d_div (DInt exp1) (DInt exp2) = DInt(quot exp1 exp2)
-d_div (DReal exp1) (DReal exp2) = DReal(exp1 / exp2)
-d_div (DInt exp1) (DReal exp2) = DReal((fromIntegral exp1) / exp2)
-d_div (DReal exp1) (DInt exp2) = DReal(exp1 / (fromIntegral exp2))
+d_mul :: DExpr -> DExpr -> ThrowsError DExpr
+d_mul (DInt exp1)  (DInt exp2)  = return $ DInt(exp1 * exp2)
+d_mul (DReal exp1) (DReal exp2) = return $ DReal(exp1 * exp2)
+d_mul (DInt exp1)  (DReal exp2) = return $ DReal((fromIntegral exp1) * exp2)
+d_mul (DReal exp1) (DInt exp2)  = return $ DReal(exp1 * (fromIntegral exp2))
+d_mul _ _ = throwError $ TypeMismatch "mul" DTypeEmpty -- TODO
+
+
+d_div :: DExpr -> DExpr -> ThrowsError DExpr
+d_div (DInt exp1)  (DInt exp2)  = return $ DInt(quot exp1 exp2)
+d_div (DReal exp1) (DReal exp2) = return $ DReal(exp1 / exp2)
+d_div (DInt exp1)  (DReal exp2) = return $ DReal((fromIntegral exp1) / exp2)
+d_div (DReal exp1) (DInt exp2)  = return $ DReal(exp1 / (fromIntegral exp2))
+d_div _ _ = throwError $ TypeMismatch "div" DTypeEmpty -- TODO
 
 
 isInstance :: DExpr -> DTypeIndicator -> Bool
@@ -672,6 +684,7 @@ data HestuError = NumArgs Integer [DExpr]
                 | NotFunction String String
                 | UnboundVar String String
                 | Default String
+                | Yahaha               -- ^ Null pointer exception, when trying to evaluate DEmpty
 
 instance Show HestuError where
   show (NumArgs expected found) = "Expected " ++ show expected
