@@ -60,10 +60,9 @@ data DExpr -- | *** Primitives
            | DInt Integer         -- ^ Integer
            | DReal Double         -- ^ Floating point
            | DString String       -- ^ String (sequence of bytes)
-           | DFunc { d_params :: [String]
-                   , d_body :: DBody
-                   -- , d_closure :: Env
-                   }              -- ^ Function literal via "func" keyword
+           | DFuncLit { lit_params :: [String]
+                      , lit_body :: DBody
+                      }              -- ^ Function literal via "func" keyword
            -- | *** Container literals
            | DArray [DExpr]       -- ^ Array literal via BRACKETS
            | DTuple [(String, DExpr)]
@@ -74,6 +73,11 @@ data DExpr -- | *** Primitives
            | DMember DExpr (Either String Int)
                                   -- ^ Member access via DOT operator
            | DOp DOp              -- ^ Operation via one of predefined operators
+           -- *** Functions
+           | DFunc { d_params :: [String]
+                   , d_body :: DBody
+                   , d_closure :: Env
+                   }              -- ^ Function instance with closure
            | DEmpty
 
 
@@ -84,7 +88,7 @@ instance Show DExpr where
   show (DInt i) = show i
   show (DReal i) = show i
   show (DString contents) = "\"" ++ contents ++ "\""
-  show (DFunc args body) = "func(" ++ (intercalate ", " args) ++ ") is " ++ show body ++ " end"
+  show (DFuncLit args body) = "func(" ++ (intercalate ", " args) ++ ") is " ++ show body ++ " end"
   show (DArray items) = "[" ++ (intercalate ", " (map show items)) ++ "]"
   show (DTuple items) =  "{" ++ (intercalate ", " (map printItem items)) ++ "}"
     where
@@ -307,7 +311,7 @@ func = do
   reserved "func"
   params <- option [] $ parens $ commaSep identifier
   b <- funcBody
-  return $ DFunc { d_params = params, d_body = b }
+  return $ DFuncLit { lit_params = params, lit_body = b }
     where funcBody :: Parser DBody
           funcBody = full <|> short
 
@@ -547,6 +551,13 @@ eval env (DMember tupleExpr index) = do
                 | otherwise -> throwError $ AttributeError tuple $ show idx
     _ -> throwError $ TypeMismatch "tuple" (toTypeIndicator tuple)
 
+eval env (DFuncLit params body) = return $ DFunc params body env
+
+eval env (DCall function args) = do
+  func <- eval env function
+  argVals <- mapM (eval env) args
+  apply func argVals
+
 eval env (DOp (DUnaryOp operator expr)) = do
   operand <- eval env expr
   liftThrows $ unaryOperation operator operand
@@ -559,6 +570,18 @@ eval env (DOp (DBinaryOp lhsExpr op rhsExpr)) = do
 eval env (DOp (expr `IsInstance` typ)) = do
   val <- eval env expr
   return $ DBool $ val `isInstance` typ
+
+
+apply :: DExpr -> [DExpr] -> IOThrowsError DExpr
+apply (DFunc params body closure) args =
+  if num params /= num args
+    then throwError $ NumArgs (num params) args
+    else (liftIO $ bindVars closure $ zip params args) >>= exec
+  where num = toInteger . length
+        exec env = execBody env body
+-- apply (PrimitiveFunc func) args = liftThrows $ func args
+-- apply (IOFunc func) args = func args
+apply notFunc _ = throwError $ NotFunction "Not a function" (show notFunc)
 
 
 unaryOperation :: DUnaryOp -> DExpr -> ThrowsError DExpr
@@ -662,7 +685,7 @@ isInstance :: DExpr -> DTypeIndicator -> Bool
 DEmpty     `isInstance` DTypeEmpty = True
 (DArray _) `isInstance` DTypeArray = True
 (DTuple _) `isInstance` DTypeTuple = True
-(DFunc {}) `isInstance` DTypeFunc = True
+(DFuncLit {}) `isInstance` DTypeFunc = True
 _ `isInstance` _ = False
 
 
@@ -676,7 +699,7 @@ toTypeIndicator (DBool _)   = DTypeBool
 toTypeIndicator (DString _) = DTypeString
 toTypeIndicator (DArray _)  = DTypeArray
 toTypeIndicator (DTuple _)  = DTypeTuple
-toTypeIndicator (DFunc {})  = DTypeFunc
+toTypeIndicator (DFuncLit {})  = DTypeFunc
 toTypeIndicator _ = DTypeEmpty
 
 
