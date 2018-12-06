@@ -621,11 +621,17 @@ d_sub (DReal exp1) (DInt exp2) = DReal(exp1 - (fromIntegral exp2))
 
 
 d_mul :: DExpr -> DExpr -> DExpr
-d_mul _ _ = DEmpty
+d_mul (DInt exp1) (DInt exp2) = DInt(exp1 * exp2)
+d_mul (DReal exp1) (DReal exp2) = DReal(exp1 * exp2)
+d_mul (DInt exp1) (DReal exp2) = DReal((fromIntegral exp1) * exp2)
+d_mul (DReal exp1) (DInt exp2) = DReal(exp1 * (fromIntegral exp2))
 
 
 d_div :: DExpr -> DExpr -> DExpr
-d_div _ _ = DEmpty
+d_div (DInt exp1) (DInt exp2) = DInt(quot exp1 exp2)
+d_div (DReal exp1) (DReal exp2) = DReal(exp1 / exp2)
+d_div (DInt exp1) (DReal exp2) = DReal((fromIntegral exp1) / exp2)
+d_div (DReal exp1) (DInt exp2) = DReal(exp1 / (fromIntegral exp2))
 
 
 isInstance :: DExpr -> DTypeIndicator -> Bool
