@@ -110,7 +110,7 @@ data DBinaryOp = DAnd
                | DGE
                | DEqual
                | DNotEqual
-               deriving Enum
+               deriving (Enum, Eq)
 
 
 instance Show DBinaryOp where
@@ -561,8 +561,47 @@ unaryOperation _ _ = error "type error: wrong type for unary operation"
 
 
 binaryOperation :: DExpr -> DBinaryOp -> DExpr -> DExpr
-binaryOperation lhs op rhs = DEmpty
+binaryOperation lhs op rhs = case lookup op boolOpFunc of
+  Just boolOp -> DBool $ boolOp (unpackBool lhs) (unpackBool rhs)
+  _ -> case lookup op equalityOpFunc of
+    Just eqOp -> DBool $ eqOp (unpackReal lhs) (unpackReal rhs)
+    _ -> error "not implemented"
 
+
+boolOpFunc :: [(DBinaryOp, Bool -> Bool -> Bool)]
+boolOpFunc = [(DAnd, (&&)),
+              (DOr,  (||)),
+              (DXor, (/=))]
+
+
+equalityOpFunc :: [(DBinaryOp, Double -> Double -> Bool)]
+equalityOpFunc = [(DLT, (<)),
+                  (DGT, (>)),
+                  (DLE, (<=)),
+                  (DGE, (>=)),
+                  (DEqual, (==)),
+                  (DNotEqual, (/=))]
+
+
+boolBoolBinop = boolBinop unpackBool
+
+
+boolBinop :: (DExpr -> a) -> (a -> a -> Bool) -> DExpr -> DExpr -> DExpr
+boolBinop unpacker op lhs rhs =
+  let left = unpacker lhs
+      right = unpacker rhs
+    in DBool $ left `op` right
+
+
+unpackBool :: DExpr -> Bool
+unpackBool (DBool b) = b
+unpackBool _ = error "TypeMismatch"
+-- unpackBool notBool  = throwError $ TypeMismatch "boolean" notBool
+
+
+unpackReal :: DExpr -> Double
+unpackReal (DInt int) = fromIntegral int
+unpackReal (DReal real) = real
 
 isInstance :: DExpr -> DTypeIndicator -> Bool
 (DInt _)   `isInstance` DTypeInt = True
@@ -577,6 +616,23 @@ _ `isInstance` _ = False
 
 
 -- data DOp = DBinaryOp DExpr DBinaryOp DExpr
+
+-- data DBinaryOp = DAnd
+--                | DOr
+--                | DXor
+
+--                | DAdd
+--                | DSub
+--                | DMul
+--                | DDiv
+
+--                | DLT
+--                | DGT
+--                | DLE
+--                | DGE
+--                | DEqual
+--                | DNotEqual
+
 
 
 -- data DExpr -- | *** Primitives
