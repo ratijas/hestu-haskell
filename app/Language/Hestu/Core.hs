@@ -511,6 +511,7 @@ execStmt env (name ::= expr) = do
 
 eval :: Env -> DExpr -> IOThrowsError DExpr
 eval env DEmpty = throwError Yahaha
+eval env (DAtom atom)    = getVar env atom
 eval env val@(DBool _)   = return val
 eval env val@(DInt _)    = return val
 eval env val@(DReal _)   = return val
@@ -669,16 +670,15 @@ _ `isInstance` _ = False
 
 
 toTypeIndicator :: DExpr -> DTypeIndicator
-
-toTypeIndicator (DInt _)  = DTypeInt
-toTypeIndicator (DReal _) = DTypeReal
-toTypeIndicator (DBool _) = DTypeBool
+toTypeIndicator (DInt _)    = DTypeInt
+toTypeIndicator (DReal _)   = DTypeReal
+toTypeIndicator (DBool _)   = DTypeBool
 toTypeIndicator (DString _) = DTypeString
-toTypeIndicator DEmpty = DTypeEmpty
-toTypeIndicator (DArray _) = DTypeArray
-toTypeIndicator (DTuple _) = DTypeTuple
-toTypeIndicator (DFunc {}) = DTypeFunc
-toTypeIndicator _ = DTypeEmpty -- error todo
+toTypeIndicator (DArray _)  = DTypeArray
+toTypeIndicator (DTuple _)  = DTypeTuple
+toTypeIndicator (DFunc {})  = DTypeFunc
+toTypeIndicator _ = DTypeEmpty
+
 
 data HestuError = NumArgs Integer [DExpr]
                 | TypeMismatch String DTypeIndicator
