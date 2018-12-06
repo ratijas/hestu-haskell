@@ -565,7 +565,9 @@ binaryOperation lhs op rhs = case lookup op boolOpFunc of
   Just boolOp -> DBool $ boolOp (unpackBool lhs) (unpackBool rhs)
   _ -> case lookup op equalityOpFunc of
     Just eqOp -> DBool $ eqOp (unpackReal lhs) (unpackReal rhs)
-    _ -> error "not implemented"
+    _ -> case lookup op mathOpFunc of
+      Just mathOp -> mathOp lhs rhs
+      _ -> error "not implemented"
 
 
 boolOpFunc :: [(DBinaryOp, Bool -> Bool -> Bool)]
@@ -583,14 +585,11 @@ equalityOpFunc = [(DLT, (<)),
                   (DNotEqual, (/=))]
 
 
-boolBoolBinop = boolBinop unpackBool
-
-
-boolBinop :: (DExpr -> a) -> (a -> a -> Bool) -> DExpr -> DExpr -> DExpr
-boolBinop unpacker op lhs rhs =
-  let left = unpacker lhs
-      right = unpacker rhs
-    in DBool $ left `op` right
+mathOpFunc :: [(DBinaryOp, DExpr -> DExpr -> DExpr)]
+mathOpFunc = [(DAdd, d_add),
+              (DSub, d_sub),
+              (DMul, d_mul),
+              (DDiv, d_div)]
 
 
 unpackBool :: DExpr -> Bool
@@ -602,6 +601,23 @@ unpackBool _ = error "TypeMismatch"
 unpackReal :: DExpr -> Double
 unpackReal (DInt int) = fromIntegral int
 unpackReal (DReal real) = real
+
+
+d_add :: DExpr -> DExpr -> DExpr
+d_add _ _ = DEmpty
+
+
+d_sub :: DExpr -> DExpr -> DExpr
+d_sub _ _ = DEmpty
+
+
+d_mul :: DExpr -> DExpr -> DExpr
+d_mul _ _ = DEmpty
+
+
+d_div :: DExpr -> DExpr -> DExpr
+d_div _ _ = DEmpty
+
 
 isInstance :: DExpr -> DTypeIndicator -> Bool
 (DInt _)   `isInstance` DTypeInt = True
