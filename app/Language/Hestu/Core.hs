@@ -95,6 +95,7 @@ instance Show DExpr where
   show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
   show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
   show (DOp op) = show op
+  show DEmpty = "<empty>"
 
 
 data DBinaryOp = DAnd
