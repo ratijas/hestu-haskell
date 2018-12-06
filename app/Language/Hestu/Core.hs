@@ -33,6 +33,7 @@ data DStmt = String ::= DExpr            -- ^ Declaration
            | DIf DExpr DBody DBody       -- ^ If expr then body else body end
            | DWhile DExpr DBody          -- ^ While ... loop ... end
            | DFor String DIterable DBody -- ^ For ident in iter loop ... end
+           | DReturn DExpr               -- ^ Early return statement
 
 
 instance Show DStmt where
@@ -42,6 +43,9 @@ instance Show DStmt where
   show (DIf expr body1 body2) = "if " ++ show expr ++" then " ++ show body1 ++ " else "++ show body2
   show (DWhile expr body) = "while " ++ show expr ++ " loop " ++ show body ++ " end"
   show (DFor string iterable body) = "for " ++ string ++ " in "++ show iterable ++ " loop " ++ show body ++ " end"
+  show (DReturn arg) = "return" ++ val
+    where val = case arg of DEmpty -> ""
+                            v -> " " ++ show v
 
 data DIterable = DIterableExpr DExpr        -- ^ Wrapper for an expression
                | DIterableRange DExpr DExpr -- ^ Range lower..upper
@@ -198,6 +202,7 @@ language = javaStyle
                                 , "is", "end", "func"
                                 , "if", "then", "else"
                                 , "while", "for", "loop", "var", "in"
+                                , "return"
                                 ]
             , P.reservedOpNames = ["..", ".", "=>", ":="] ++
                                   (map show allSymbolicOps)
@@ -360,6 +365,7 @@ statement = d_if
         <|> d_while
         <|> d_decl
         <|> d_loop
+        <|> d_return
         <|> d_assignment
         <|> d_expr
   where
@@ -419,6 +425,12 @@ statement = d_if
       b <- body
       reserved "end"
       return $ DFor var it b
+
+    d_return :: Parser DStmt
+    d_return = do
+      reserved "return"
+      arg <- option DEmpty expr
+      return $ DReturn arg
 
 
 expr :: Parser DExpr
@@ -560,6 +572,8 @@ execStmt env loop@(DFor name it body) =
               execBody env body
               forLoop name (l + 1, u) body
             _ -> return DEmpty
+execStmt env (DReturn arg) = throwError $ RaiseReturn arg
+
 
 eval :: Env -> DExpr -> IOThrowsError DExpr
 eval env DEmpty          = return DEmpty
@@ -626,7 +640,10 @@ apply (DFunc params body closure) args =
     then throwError $ NumArgs (num params) args
     else (liftIO $ bindVars closure $ zip params args) >>= exec
   where num = toInteger . length
-        exec env = execBody env body
+        exec env = (execBody env body) `catchError` recoverOnReturn
+        recoverOnReturn :: HestuError -> IOThrowsError DExpr
+        recoverOnReturn (RaiseReturn arg) = return arg
+        recoverOnReturn e = throwError e
 apply (DPrimitiveFunc func) args = liftThrows $ func args
 apply (DPrimitiveIOFunc func) args = func args
 apply notFunc _ = throwError $ NotFunction "Not a function" (show notFunc)
@@ -758,6 +775,7 @@ data HestuError = NumArgs Integer [DExpr]
                 | UnboundVar String String
                 | AttributeError DExpr String
                 | Default String
+                | RaiseReturn DExpr    -- ^ Flow control operator
                 | Yahaha               -- ^ Null pointer exception, when trying to evaluate DEmpty
 
 instance Show HestuError where
@@ -771,6 +789,7 @@ instance Show HestuError where
   show (AttributeError object member) = "Attribute error: object " ++ (show object)
                                      ++ " has no attribute " ++ member
   show (Default str) = "unknown error. " ++ str
+  show (RaiseReturn arg) = "Return"
   show (Yahaha) = "Ya-ha-ha!"
 
 type ThrowsError = Either HestuError

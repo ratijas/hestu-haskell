@@ -1,0 +1,13 @@
+var f := func() is
+    println("f before");
+    return 42;
+    println("f after");
+end;
+
+var g := func(fn) is
+    println("g before");
+    var a := fn();
+    println("g after");
+end;
+
+g(f);
