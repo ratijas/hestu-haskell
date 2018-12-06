@@ -516,6 +516,43 @@ execStmt env (name ::= expr) = do
 execStmt env ((DAtom var) := expr) = do
   val <- eval env expr
   setVar env var val
+execStmt env (_ := expr) = throwError Yahaha
+execStmt env (DIf condition thenBody elseBody) = do
+  cond <- eval env condition
+  execBody env $ case cond of
+    DBool True -> thenBody
+    _          -> elseBody
+execStmt env loop@(DWhile condition loopBody) = do
+  cond <- eval env condition
+  case cond of
+    DBool True -> execBody env loopBody >> execStmt env loop
+    _ -> return DEmpty
+execStmt env loop@(DFor name it body) =
+  case it of
+    DIterableExpr expr -> throwError Yahaha
+    DIterableRange lower upper -> do
+      (l, u) <- range (lower, upper)
+      defineVar env name (DInt l)
+      forLoop name (l, u) body
+
+  where range :: (DExpr, DExpr) -> IOThrowsError (Integer, Integer)
+        range (lower, upper) = do
+          low <- eval env lower
+          up <- eval env upper
+          case (low, up) of
+            ((DInt l), (DInt u)) -> return (l, u)
+            _ -> throwError $ TypeMismatch "int" (toTypeIndicator low)
+
+        forLoop :: String -> (Integer, Integer) -> DBody -> IOThrowsError DExpr
+        forLoop name (l, u) body = do
+          let condition = DOp $ DBinaryOp (DInt l) DLT (DInt u)
+          cond <- eval env condition
+          case cond of
+            DBool True -> do
+              setVar env name (DInt l)
+              execBody env body
+              forLoop name (l + 1, u) body
+            _ -> return DEmpty
 
 eval :: Env -> DExpr -> IOThrowsError DExpr
 eval env DEmpty          = return DEmpty
