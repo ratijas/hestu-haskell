@@ -667,16 +667,15 @@ _ `isInstance` _ = False
 
 
 toTypeIndicator :: DExpr -> DTypeIndicator
-
-toTypeIndicator (DInt _)  = DTypeInt
-toTypeIndicator (DReal _) = DTypeReal
-toTypeIndicator (DBool _) = DTypeBool
+toTypeIndicator (DInt _)    = DTypeInt
+toTypeIndicator (DReal _)   = DTypeReal
+toTypeIndicator (DBool _)   = DTypeBool
 toTypeIndicator (DString _) = DTypeString
-toTypeIndicator DEmpty = DTypeEmpty
-toTypeIndicator (DArray _) = DTypeArray
-toTypeIndicator (DTuple _) = DTypeTuple
-toTypeIndicator (DFunc {}) = DTypeFunc
-toTypeIndicator _ = DTypeEmpty -- error todo
+toTypeIndicator (DArray _)  = DTypeArray
+toTypeIndicator (DTuple _)  = DTypeTuple
+toTypeIndicator (DFunc {})  = DTypeFunc
+toTypeIndicator _ = DTypeEmpty
+
 
 data HestuError = NumArgs Integer [DExpr]
                 | TypeMismatch String DTypeIndicator
