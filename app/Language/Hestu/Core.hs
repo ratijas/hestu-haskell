@@ -517,7 +517,7 @@ execStmt env ((DAtom var) := expr) = do
   setVar env var val
 
 eval :: Env -> DExpr -> IOThrowsError DExpr
-eval env DEmpty = throwError Yahaha
+eval env DEmpty          = return DEmpty
 eval env (DAtom atom)    = getVar env atom
 eval env val@(DBool _)   = return val
 eval env val@(DInt _)    = return val
