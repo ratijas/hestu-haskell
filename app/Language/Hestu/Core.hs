@@ -613,7 +613,10 @@ d_add (DTuple tuple1) (DTuple tuple2) = DTuple(tuple1 ++ tuple2)
 d_add (DArray arr1) (DArray arr2) = DArray(arr1 ++ arr2)
 
 d_sub :: DExpr -> DExpr -> DExpr
-d_sub _ _ = DEmpty
+d_sub (DInt exp1) (DInt exp2) = DInt(exp1 - exp2)
+d_sub (DReal exp1) (DReal exp2) = DReal(exp1 - exp2)
+d_sub (DInt exp1) (DReal exp2) = DReal((fromIntegral exp1) - exp2)
+d_sub (DReal exp1) (DInt exp2) = DReal(exp1 - (fromIntegral exp2))
 
 
 d_mul :: DExpr -> DExpr -> DExpr
