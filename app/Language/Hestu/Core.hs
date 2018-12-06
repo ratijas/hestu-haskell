@@ -508,7 +508,7 @@ exec (DExpr expr) = eval expr
 
 
 eval :: DExpr -> ThrowsError DExpr
-eval DEmpty = throwError Yahaha -- TODO: EmptyRockException
+eval DEmpty = throwError Yahaha
 eval val@(DBool _)   = return val
 eval val@(DInt _)    = return val
 eval val@(DReal _)   = return val
@@ -525,13 +525,13 @@ eval (DIndex arrayExpr indexExpr) = do
   list <- case array of
     DArray arr -> return arr
     DString str -> return $ map (DString . return) str
-    _ -> throwError $ TypeMismatch "index can only be applied to arrays" DTypeEmpty -- TODO: DExpr to DTypeIndicator
+    _ -> throwError $ TypeMismatch "array" (toTypeIndicator array)
   index <- eval indexExpr
   case index of
     DInt idx | 0 <= i && i < length list -> return $ list !! i
-             | otherwise                 -> throwError $ Default "index out of range"
+             | otherwise                 -> throwError $ AttributeError array $ show idx
       where i = fromIntegral idx
-    _  -> throwError $ TypeMismatch "index must be int" DTypeEmpty -- TODO
+    _  -> throwError $ TypeMismatch "int" (toTypeIndicator index)
 
 eval (DMember tupleExpr index) = do
   tuple <- eval tupleExpr
@@ -539,10 +539,10 @@ eval (DMember tupleExpr index) = do
     DTuple tup -> case index of
       Left name -> case lookup name tup of
         Just x -> return x
-        _      -> throwError $ Default $ "attribute error: no such field: " ++ show name
+        _      -> throwError $ AttributeError tuple name
       Right idx | 0 <= idx && idx < length tup -> return $ snd $ tup !! idx
-                | otherwise -> throwError $ Default $ "attribute error: index out of range"
-    _ -> throwError $ TypeMismatch "member access can only be applied to tuples" DTypeEmpty -- TODO
+                | otherwise -> throwError $ AttributeError tuple $ show idx
+    _ -> throwError $ TypeMismatch "tuple" (toTypeIndicator tuple)
 
 eval (DOp (DUnaryOp operator expr)) = do
   operand <- eval expr
@@ -564,7 +564,7 @@ unaryOperation DUnaryMinus (DReal operand) = return $ DReal $ operand * (-1)
 unaryOperation DUnaryPlus val@(DInt operand) = return $ val
 unaryOperation DUnaryPlus val@(DReal operand) = return $ val
 unaryOperation DUnaryNot (DBool operand) = return $ DBool $ not operand
-unaryOperation _ _ = throwError $ TypeMismatch "wrong type for unary operation" DTypeEmpty -- TODO
+unaryOperation _ val = throwError $ TypeMismatch "int, real or boolean" (toTypeIndicator val)
 
 
 binaryOperation :: DExpr -> DBinaryOp -> DExpr -> ThrowsError DExpr
@@ -581,7 +581,7 @@ binaryOperation lhs op rhs =
         return $ DBool $ eqOp l r
       _ -> case lookup op mathOpFunc of
         Just mathOp -> mathOp lhs rhs
-        _ -> throwError $ Default "not implemented"
+        _ -> throwError Yahaha
 
 
 boolOpFunc :: [(DBinaryOp, Bool -> Bool -> Bool)]
@@ -608,13 +608,13 @@ mathOpFunc = [(DAdd, d_add),
 
 unpackBool :: DExpr -> ThrowsError Bool
 unpackBool (DBool b) = return b
-unpackBool notBool  = throwError $ TypeMismatch "boolean" DTypeEmpty -- TODO
+unpackBool notBool  = throwError $ TypeMismatch "boolean" (toTypeIndicator notBool)
 
 
 unpackReal :: DExpr -> ThrowsError Double
 unpackReal (DInt int) = return $ fromIntegral int
 unpackReal (DReal real) = return real
-unpackReal notReal = throwError $ TypeMismatch "real" DTypeEmpty -- TODO
+unpackReal notReal = throwError $ TypeMismatch "real" (toTypeIndicator notReal)
 
 
 d_add :: DExpr -> DExpr -> ThrowsError DExpr
@@ -625,14 +625,14 @@ d_add (DReal exp1)    (DInt exp2)     = return $ DReal(exp1 + (fromIntegral exp2
 d_add (DString str1)  (DString str2)  = return $ DString(str1 ++ str2)
 d_add (DTuple tuple1) (DTuple tuple2) = return $ DTuple(tuple1 ++ tuple2)
 d_add (DArray arr1)   (DArray arr2)   = return $ DArray(arr1 ++ arr2)
-d_add _ _ = throwError $ TypeMismatch "add" DTypeEmpty -- TODO
+d_add x y = throwError $ TypeMismatch "int/real + int/real, strings, tuples or arrays" (toTypeIndicator x)
 
 d_sub :: DExpr -> DExpr -> ThrowsError DExpr
 d_sub (DInt exp1)  (DInt exp2)  = return $ DInt(exp1 - exp2)
 d_sub (DReal exp1) (DReal exp2) = return $ DReal(exp1 - exp2)
 d_sub (DInt exp1)  (DReal exp2) = return $ DReal((fromIntegral exp1) - exp2)
 d_sub (DReal exp1) (DInt exp2)  = return $ DReal(exp1 - (fromIntegral exp2))
-d_sub _ _ = throwError $ TypeMismatch "sub" DTypeEmpty -- TODO
+d_sub x y = throwError $ TypeMismatch "int/real - int/real" (toTypeIndicator x)
 
 
 d_mul :: DExpr -> DExpr -> ThrowsError DExpr
@@ -640,7 +640,7 @@ d_mul (DInt exp1)  (DInt exp2)  = return $ DInt(exp1 * exp2)
 d_mul (DReal exp1) (DReal exp2) = return $ DReal(exp1 * exp2)
 d_mul (DInt exp1)  (DReal exp2) = return $ DReal((fromIntegral exp1) * exp2)
 d_mul (DReal exp1) (DInt exp2)  = return $ DReal(exp1 * (fromIntegral exp2))
-d_mul _ _ = throwError $ TypeMismatch "mul" DTypeEmpty -- TODO
+d_mul x y = throwError $ TypeMismatch "int/real * int/real" (toTypeIndicator x)
 
 
 d_div :: DExpr -> DExpr -> ThrowsError DExpr
@@ -648,7 +648,7 @@ d_div (DInt exp1)  (DInt exp2)  = return $ DInt(quot exp1 exp2)
 d_div (DReal exp1) (DReal exp2) = return $ DReal(exp1 / exp2)
 d_div (DInt exp1)  (DReal exp2) = return $ DReal((fromIntegral exp1) / exp2)
 d_div (DReal exp1) (DInt exp2)  = return $ DReal(exp1 / (fromIntegral exp2))
-d_div _ _ = throwError $ TypeMismatch "div" DTypeEmpty -- TODO
+d_div x y = throwError $ TypeMismatch "int/real / int/real" (toTypeIndicator x)
 
 
 isInstance :: DExpr -> DTypeIndicator -> Bool
@@ -683,17 +683,20 @@ data HestuError = NumArgs Integer [DExpr]
                 | Parser ParseError
                 | NotFunction String String
                 | UnboundVar String String
+                | AttributeError DExpr String
                 | Default String
                 | Yahaha               -- ^ Null pointer exception, when trying to evaluate DEmpty
 
 instance Show HestuError where
   show (NumArgs expected found) = "Expected " ++ show expected
-                                       ++ "  args; found values " ++ show found
+                                       ++ " args; found values " ++ show found
   show (TypeMismatch expected found) = "Invalid type: expected " ++ expected
                                        ++ ", found " ++ show found
   show (Parser parseErr) = "Parse error at " ++ show parseErr
   show (NotFunction message func) = message ++ ": " ++ show func
   show (UnboundVar  message varname)  = message ++ ": " ++ varname
+  show (AttributeError object member) = "Attribute error: object " ++ (show object)
+                                     ++ " has no attribute " ++ member
   show (Default str) = "unknown error. " ++ str
 
 type ThrowsError = Either HestuError
