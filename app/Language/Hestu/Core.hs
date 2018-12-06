@@ -1,5 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE OverloadedStrings         #-}
 
 module Language.Hestu.Core where
 
@@ -9,6 +10,7 @@ import Control.Monad.IO.Class
 import Data.List (intercalate)
 import Data.IORef
 import Data.Maybe
+import Text.Replace
 import System.Environment
 import System.IO
 import qualified Text.Parsec.Token as P
@@ -223,7 +225,8 @@ string = do
   x <- many $ noneOf "\""
   char '"'
   whiteSpace
-  return $ DString x
+  let str = replaceWithList [Replace "\\n" "\n"] x
+  return $ DString str
 
 
 atom :: Parser DExpr
