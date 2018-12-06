@@ -488,4 +488,58 @@ readStmt input = case parse statement "Hestu" input of
 readBody :: String -> String
 readBody input = case parse body "Hestu" input of
     Left err -> "No match: " ++ show err
-    Right val -> "Found " ++ show val
+    Right val -> "Found " ++ show (execBody val)
+
+
+-- eval & apply
+
+
+execBody :: DBody -> DExpr
+execBody (DBody body) = last (DEmpty : (map exec body))
+
+exec :: DStmt -> DExpr
+exec (DExpr expr) = eval expr
+
+
+eval :: DExpr -> DExpr
+eval DEmpty = DEmpty -- TODO: EmptyRockException
+eval val@(DBool _) = val
+eval val@(DInt _) = val
+eval val@(DReal _) = val
+eval val@(DString _) = val
+eval val@(DArray xs) = DArray (map eval xs)
+eval val@(DTuple xs) = DTuple $ zip keys (map eval values)
+  where keys = (map fst xs)
+        values = (map snd xs)
+
+eval (DIndex (DArray array) (DInt idx)) = array !! (fromIntegral idx)
+-- eval (DIndex (DArray _) _) = -- TODO: type error: index must be int
+-- eval (DIndex _ _) = -- TODO: type error: index can only be applied to arrays
+
+
+
+
+
+
+
+-- data DExpr -- | *** Primitives
+--            = DAtom String         -- ^ Identifier
+--            | DBool Bool           -- ^ Boolean
+--            | DInt Integer         -- ^ Integer
+--            | DReal Double         -- ^ Floating point
+--            | DString String       -- ^ String (sequence of bytes)
+--            | DFunc { d_params :: [String]
+--                    , d_body :: DBody
+--                    -- , d_closure :: Env
+--                    }              -- ^ Function literal via "func" keyword
+--            -- | *** Container literals
+--            | DArray [DExpr]       -- ^ Array literal via BRACKETS
+--            | DTuple [(String, DExpr)]
+--                                   -- ^ Tuple literal via BRACES
+--            -- | *** Operations
+--            | DIndex DExpr DExpr   -- ^ Indexing via BRACKETS
+--            | DCall DExpr [DExpr]  -- ^ Function call via PARENS
+--            | DMember DExpr (Either String Int)
+--                                   -- ^ Member access via DOT operator
+--            | DOp DOp              -- ^ Operation via one of predefined operators
+--            | DEmpty
