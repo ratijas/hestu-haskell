@@ -1,0 +1,7 @@
+var x := 100;
+
+if x > 42 then
+    "yes";
+else
+    "no";
+end;
