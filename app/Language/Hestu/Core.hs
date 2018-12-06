@@ -695,7 +695,7 @@ instance Show HestuError where
   show (NotFunction message func) = message ++ ": " ++ show func
   show (UnboundVar  message varname)  = message ++ ": " ++ varname
   show (Default str) = "unknown error. " ++ str
-  show (Yahaha) = "Yahaha"
+  show (Yahaha) = "Ya-ha-ha!"
 
 type ThrowsError = Either HestuError
 
