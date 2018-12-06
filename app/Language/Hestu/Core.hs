@@ -597,6 +597,7 @@ mathOpFunc = [(DAdd, d_add),
               (DDiv, d_div)]
 
 
+
 unpackBool :: DExpr -> Bool
 unpackBool (DBool b) = b
 unpackBool _ = error "TypeMismatch"
@@ -652,6 +653,18 @@ _ `isInstance` _ = False
 
 -- *** Error Handling
 
+
+toTypeIndicator :: DExpr -> DTypeIndicator
+
+toTypeIndicator (DInt _)  = DTypeInt
+toTypeIndicator (DReal _) = DTypeReal
+toTypeIndicator (DBool _) = DTypeBool
+toTypeIndicator (DString _) = DTypeString
+toTypeIndicator DEmpty = DTypeEmpty
+toTypeIndicator (DArray _) = DTypeArray
+toTypeIndicator (DTuple _) = DTypeTuple
+toTypeIndicator (DFunc {}) = DTypeFunc
+toTypeIndicator _ = DTypeEmpty -- error todo
 
 data HestuError = NumArgs Integer [DExpr]
                 | TypeMismatch String DTypeIndicator
