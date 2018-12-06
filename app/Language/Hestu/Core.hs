@@ -544,7 +544,7 @@ eval (DOp (DUnaryOp operator expr)) =
 
 eval (DOp (DBinaryOp lhsExpr op rhsExpr)) =
   let lhs = eval lhsExpr
-      rhs = eval lhsExpr
+      rhs = eval rhsExpr
     in binaryOperation lhs op rhs
 
 eval (DOp (expr `IsInstance` typ)) =
