@@ -6,3 +6,19 @@ t[10] := func(y) is
     (1 + 2);
     end;
 end;
+
+
+t := [1, 4, 6, 8, 9, 11]
+n := 6
+var sort := func(arr, n) is
+    for i in 0 .. (n - 1) loop
+        for j in 0 .. (n - i - 1) loop
+            if (arr[j] > arr[j + 1] then
+                var tmp := arr[j];
+                arr[j] := arr[j + 1];
+                arr[j + 1] := tmp;
+             else true
+             end;
+        end;
+    end;
+end;
