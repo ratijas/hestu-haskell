@@ -1,6 +1,6 @@
 # Haskell
 .stack-work/
-scheme-parser.cabal
+*.cabal
 *~
 
 # JetBrains IntelliJ
