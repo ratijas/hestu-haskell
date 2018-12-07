@@ -1,12 +1,12 @@
-name:                scheme-parser
+name:                Hestu
 version:             0.1.0.0
-github:              "ratijas/scheme-parser"
-license:             BSD3
-author:              "ratijas"
+github:              "ratijas/cc"
+license:             MIT
+author:              "@ratijas & @abgdeyog"
 maintainer:          "@ratijas"
-copyright:           "(c)"
-extra-source-files: []
-description:         Parser for Scheme language
+copyright:           ""
+extra-source-files:  []
+description:         Virtual Machine for Hestu language
 
 dependencies:
 - base >= 4.7 && < 5
@@ -18,7 +18,7 @@ library:
   source-dirs:           app
 
 executables:
-  scheme-parser-exe:
+  hestu:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
