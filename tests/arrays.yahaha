@@ -6,3 +6,5 @@ t := t + [
         end;
     end
 ];
+
+println(t);

@@ -920,9 +920,10 @@ ioPrimitives = [("print", builtinPrint False),
 
 builtinPrint :: Bool -> [DExpr] -> IOThrowsError DExpr
 builtinPrint False [(DString s)] = (liftIO $ putStr s) >> return DEmpty
+builtinPrint False [x]           = (liftIO $ putStr $ show x) >> return DEmpty
+builtinPrint False xs            = mapM (builtinPrint False . return) xs >> return DEmpty
 builtinPrint True [(DString s)] = (liftIO $ putStrLn s) >> return DEmpty
-builtinPrint False xs = (liftIO $ putStr $ unwords $ map show xs) >> return DEmpty
-builtinPrint True xs = (liftIO $ putStrLn $ unwords $ map show xs) >> return DEmpty
+builtinPrint True xs = builtinPrint False xs >> (liftIO $ putStrLn "") >> return DEmpty
 
 
 primitiveBindings :: IO Env
