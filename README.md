@@ -15,7 +15,7 @@ To build project haskell-stack toolchain is needed.
  1. Obtain stack here: [stack](https://docs.haskellstack.org/en/stable/README/).
  2. Run `$ stack build` under project directory
  3. Wait for stack to download an appropriate Haskell compiler and build the project with all its dependencies.
- 4. Run `$ stack exec scheme-parser-exe` to run REPL or `$ stack exec scheme-parser-exe finename.yahaha` to run a script from a file.
+ 4. Run `$ stack exec hestu` to run REPL or `$ stack exec hestu finename.yahaha` to run a script from a file.
 
 Run all test scripts with `$ ./run-tests.sh`
 
