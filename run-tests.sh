@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
 
-find tests/ -print0 -name '*.yahaha' |\
-xargs -0 -n 1 stack exec -- scheme-parser-exe
+bin=${bin:-scheme-parser-exe}
+
+find tests -name '*.yahaha' -print0 |\
+    xargs -0 -n1 stack exec -- "$bin"
