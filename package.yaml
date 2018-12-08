@@ -11,7 +11,6 @@ description:         Virtual Machine for Hestu language
 dependencies:
 - base >= 4.7 && < 5
 - parsec >= 3.1 && < 4
-- text-replace >= 0.0.0.4
 - mtl
 
 library:

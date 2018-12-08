@@ -1,5 +1,4 @@
 resolver: lts-12.21
 packages:
 - .
-extra-deps:
-- text-replace-0.0.0.4
+extra-deps: []

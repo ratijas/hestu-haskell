@@ -10,7 +10,6 @@ import Control.Monad.IO.Class
 import Data.List (intercalate)
 import Data.IORef
 import Data.Maybe
-import Text.Replace
 import System.Environment
 import System.IO
 import qualified Text.Parsec.Token as P
@@ -222,6 +221,7 @@ dot            = P.dot            lexer
 semi           = P.semi           lexer
 reservedOp     = P.reservedOp     lexer
 whiteSpace     = P.whiteSpace     lexer
+stringLiteral  = P.stringLiteral  lexer
 
 
 program :: Parser DProgram
@@ -229,13 +229,7 @@ program = liftM DProgram (whiteSpace >> body <* eof)
 
 
 string :: Parser DExpr
-string = do
-  char '"'
-  x <- many $ noneOf "\""
-  char '"'
-  whiteSpace
-  let str = replaceWithList [Replace "\\n" "\n"] x
-  return $ DString str
+string = stringLiteral >>= return . DString
 
 
 atom :: Parser DExpr
