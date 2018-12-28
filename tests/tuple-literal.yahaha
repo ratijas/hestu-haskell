@@ -1,0 +1,6 @@
+var empty := {};
+var singleton := {42};
+var heterogeneous := {true, "world", [3.14]};
+var named := {fst := false, snd := {}};
+
+println(format(named));

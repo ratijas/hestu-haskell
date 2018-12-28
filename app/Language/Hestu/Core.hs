@@ -17,6 +17,9 @@ import           Text.Parsec.Expr
 import           Text.Parsec.Language (javaStyle)
 import           Text.ParserCombinators.Parsec hiding (spaces, string)
 
+import qualified Data.Vector         as V
+import qualified Data.Vector.Mutable as VM
+
 
 -- *** D AST
 
@@ -60,56 +63,74 @@ instance Show DBody where
 
 
 data DExpr -- | *** Primitives
-           = DAtom String         -- ^ Identifier
-           | DBool Bool           -- ^ Boolean
-           | DInt Integer         -- ^ Integer
-           | DReal Double         -- ^ Floating point
-           | DString String       -- ^ String (sequence of bytes)
+           = DEmpty                             -- ^ Represents an absence of any value
+           | DAtom String                       -- ^ Identifier
+           | DBool Bool                         -- ^ Boolean
+           | DInt Integer                       -- ^ Integer
+           | DReal Double                       -- ^ Floating point
+           | DString String                     -- ^ String (sequence of bytes)
+           -- | *** Container literals
+           | DArrayLit (V.Vector DExpr)         -- ^ Array literal via BRACKETS
+           | DTupleLit (V.Vector (String, DExpr))
+                                                -- ^ Tuple literal via BRACES
+           -- | *** Container instances
+           | DArray (VM.IOVector DExpr)         -- ^ Array instances
+           | DTuple (V.Vector (String, IORef DExpr))
+                                                -- ^ Tuple instances.
+                                                --   Tuple keys and their order are immutable,
+                                                --   but individual fields do support assignment.
+           -- | *** Operations
+           | DIndex DExpr DExpr                 -- ^ Indexing via BRACKETS
+           | DMember DExpr (Either String Int)  -- ^ Member access via DOT operator
+           | DCall DExpr [DExpr]                -- ^ Function call via PARENS
+           | DOp DOp                            -- ^ Operation via one of predefined operators
+           -- *** Functions
            | DFuncLit { lit_params :: [String]
                       , lit_body :: DBody
-                      }              -- ^ Function literal via "func" keyword
-           -- | *** Container literals
-           | DArray [DExpr]       -- ^ Array literal via BRACKETS
-           | DTuple [(String, DExpr)]
-                                  -- ^ Tuple literal via BRACES
-           -- | *** Operations
-           | DIndex DExpr DExpr   -- ^ Indexing via BRACKETS
-           | DCall DExpr [DExpr]  -- ^ Function call via PARENS
-           | DMember DExpr (Either String Int)
-                                  -- ^ Member access via DOT operator
-           | DOp DOp              -- ^ Operation via one of predefined operators
-           -- *** Functions
+                      }                         -- ^ Function literal via "func" keyword
            | DFunc { d_params :: [String]
                    , d_body :: DBody
                    , d_closure :: Env
-                   }              -- ^ Function instance with closure
+                   }                            -- ^ Function instance with closure
            | DPrimitiveFunc ([DExpr] -> ThrowsError DExpr)
            | DPrimitiveIOFunc ([DExpr] -> IOThrowsError DExpr)
-           | DEmpty
 
 
 instance Show DExpr where
+  show DEmpty = "<empty>"
   show (DAtom name) = name
   show (DBool True) = "true"
   show (DBool False) = "false"
   show (DInt i) = show i
   show (DReal i) = show i
   show (DString contents) = "\"" ++ contents ++ "\""
+
+  show (DArrayLit items) = "[" ++ (intercalate ", " (V.toList $ V.map show items)) ++ "]"
+  show (DTupleLit items) = "{" ++ (intercalate ", " (V.toList $ V.map showTupleItem items)) ++ "}"
+    where
+      showTupleItem :: (String, DExpr) -> String
+      showTupleItem (k, v) = if null k
+        then                show v
+        else k ++ " := " ++ show v
+
+  show (DArray _) = "[...]"
+  show (DTuple _) =  "{...}"
+
+  show (DIndex lhs idx) = (show lhs) ++ "[" ++ (show idx) ++ "]"
+  show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
+  show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
+  show (DOp op) = show op
+
   show (DFuncLit args body) = "func(" ++ (intercalate ", " args) ++ ") is " ++ show body ++ " end"
   show (DFunc args body closure) = "closure(" ++ (intercalate ", " args) ++ ") is " ++ show body ++ " end"
-  show (DArray items) = "[" ++ (intercalate ", " (map show items)) ++ "]"
-  show (DTuple items) =  "{" ++ (intercalate ", " (map printItem items)) ++ "}"
-    where
-        printItem :: (String, DExpr) -> String
-        printItem (k, v) = if null k then                     show v
-                                     else k ++ " := " ++ show v
-  show (DIndex lhs idx) = (show lhs) ++ "[" ++ (show idx) ++ "]"
-  show (DCall fn args) = (show fn) ++ "(" ++ (intercalate ", " (map show args)) ++ ")"
-  show (DMember lhs member) = (show lhs) ++ "." ++ (either (show . DAtom) show member)
-  show (DOp op) = show op
+
   show (DPrimitiveFunc _) = "<primitive>"
   show (DPrimitiveIOFunc _) = "<io>"
-  show DEmpty = "<empty>"
+
+showTupleItem :: (String, DExpr) -> String
+showTupleItem (k, v) = if null k
+  then                show v
+  else k ++ " := " ++ show v
 
 
 data DBinaryOp = DAnd
@@ -296,11 +317,11 @@ literal = array
 
 
 array :: Parser DExpr
-array = brackets (commaSep expr) >>= return . DArray
+array = brackets (commaSep expr) >>= return . DArrayLit . V.fromList
 
 
 tuple :: Parser DExpr
-tuple = braces (commaSep item) >>= return . DTuple
+tuple = braces (commaSep item) >>= return . DTupleLit . V.fromList
     where item :: Parser (String, DExpr)
           item = do
             k <- key
@@ -576,40 +597,57 @@ eval env val@(DBool _)   = return val
 eval env val@(DInt _)    = return val
 eval env val@(DReal _)   = return val
 eval env val@(DString _) = return val
-eval env val@(DArray xs) = mapM (eval env) xs >>= return . DArray
-eval env val@(DTuple xs) = do
-  vals <- mapM (eval env) values
-  return $ DTuple $ zip keys vals
-  where keys = (map fst xs)
-        values = (map snd xs)
 
-eval env (DIndex arrayExpr indexExpr) = do
-  array <- eval env arrayExpr
-  list <- case array of
-    DArray arr -> return arr
-    DString str -> return $ map (DString . return) str
-    other -> liftThrows $ typeMismatch'or'yahaha "array" other
+eval env (DArrayLit xs) = do
+  ys <- V.mapM (eval env) xs
+  zs <- liftIO $ V.thaw ys
+  return $ DArray zs
+
+eval env (DTupleLit xs) = do
+  let (keys, values) = V.unzip xs
+  ys <- V.mapM (eval env) values
+  zs <- liftIO $ V.mapM newIORef ys
+  return $ DTuple $ V.zip keys zs
+
+eval env val@(DArray _) = return val
+eval env val@(DTuple _) = return val
+
+
+eval env (DIndex containerExpr indexExpr) = do
+  -- get reasonable index
   index <- eval env indexExpr
-  case index of
-    DInt idx | 0 <= i && i < length list -> return $ list !! i
-             | otherwise                 -> throwError $ AttributeError array $ show idx
-      where i = fromIntegral idx
-    DEmpty -> throwError Yahaha
+  i <- case index of
+    DInt idx -> return $ fromIntegral idx
     other -> liftThrows $ typeMismatch'or'yahaha "int" other
+
+  -- get reasonable container
+  container <- eval env containerExpr
+
+  case container of
+    DArray xs -> do
+      item <- liftIO $ VM.read xs i
+      return item
+      -- throwError $ AttributeError container $ show i -- TODO: informative error message
+    DString str -> if 0 <= i && i < length str
+      then return $ DString $ return $ str !! i
+      else throwError $ AttributeError container $ show i
+    other -> liftThrows $ typeMismatch'or'yahaha "array or string" other
 
 eval env (DMember tupleExpr index) = do
   tuple <- eval env tupleExpr
-  case tuple of
-    DTuple tup -> case index of
-      Left name -> case lookup name tup of
-        Just x -> return x
-        _      -> throwError $ AttributeError tuple name
-      Right idx | 0 <= idx && idx < length tup -> return $ snd $ tup !! idx
-                | otherwise -> throwError $ AttributeError tuple $ show idx
-    DEmpty -> throwError Yahaha
+  kv <- case tuple of
+    DTuple t -> return t
     other -> liftThrows $ typeMismatch'or'yahaha "tuple" other
 
-eval env (DFuncLit params body) = return $ DFunc params body env
+  ref <- case index of
+    Left name -> case V.find ((== name) . fst) kv of
+      Just (_, value) -> return value
+      _               -> throwError $ AttributeError tuple name
+    Right idx | 0 <= idx && idx < V.length kv ->
+                return $ snd $ (V.!) kv idx
+              | otherwise ->
+                throwError $ AttributeError tuple $ show idx
+  liftIO $ readIORef ref
 
 eval env (DCall function args) = do
   func <- eval env function
@@ -628,6 +666,8 @@ eval env (DOp (DBinaryOp lhsExpr op rhsExpr)) = do
 eval env (DOp (expr `IsInstance` typ)) = do
   val <- eval env expr
   return $ DBool $ val `isInstance` typ
+
+eval env (DFuncLit params body) = return $ DFunc params body env
 
 
 apply :: DExpr -> [DExpr] -> IOThrowsError DExpr
@@ -665,7 +705,7 @@ binaryOperation lhs op rhsExpr =
   in case (boolFuncM, eqFuncM, mathFuncM) of
     (Just boolFunc, _, _) -> applyBoolOp boolFunc
     (_, Just eqFunc,   _) -> applyEqOp eqFunc
-    (_, _, Just mathFunc) -> applyMathOp mathFunc
+    (_, _, Just mathFunc) -> rhsExpr >>= mathFunc lhs
     _                     -> liftThrows $ throwError Yahaha
   where
     applyBoolOp f = do
@@ -677,10 +717,6 @@ binaryOperation lhs op rhsExpr =
         r <- rhsExpr >>= unpack
         return $ DBool $ f l r
         where unpack = liftThrows . unpackReal
-
-    applyMathOp f = do
-      rhs <- rhsExpr
-      liftThrows $ f lhs rhs
 
 
 -- | `rhs` is wrapped in monad for lazy evaluation.
@@ -713,7 +749,7 @@ equalityOpFunctions = [ (DLT, (<))
                       , (DNotEqual, (/=))]
 
 
-mathOpFunctions :: [(DBinaryOp, DExpr -> DExpr -> ThrowsError DExpr)]
+mathOpFunctions :: [(DBinaryOp, DExpr -> DExpr -> IOThrowsError DExpr)]
 mathOpFunctions = [ (DAdd, d_add)
                   , (DSub, d_sub)
                   , (DMul, d_mul)
@@ -731,17 +767,21 @@ unpackReal (DReal real) = return real
 unpackReal val = typeMismatch'or'yahaha "int or real" val
 
 
-d_add :: DExpr -> DExpr -> ThrowsError DExpr
+d_add :: DExpr -> DExpr -> IOThrowsError DExpr
 d_add (DInt exp1)     (DInt exp2)     = return $ DInt(exp1 + exp2)
 d_add (DReal exp1)    (DReal exp2)    = return $ DReal(exp1 + exp2)
 d_add (DInt exp1)     (DReal exp2)    = return $ DReal((fromIntegral exp1) + exp2)
 d_add (DReal exp1)    (DInt exp2)     = return $ DReal(exp1 + (fromIntegral exp2))
 d_add (DString str1)  (DString str2)  = return $ DString(str1 ++ str2)
-d_add (DTuple tuple1) (DTuple tuple2) = return $ DTuple(tuple1 ++ tuple2)
-d_add (DArray arr1)   (DArray arr2)   = return $ DArray(arr1 ++ arr2)
+d_add (DTuple tuple1) (DTuple tuple2) = return $ DTuple((V.++) tuple1 tuple2)
+d_add (DArray arr1)   (DArray arr2)   = do
+  a1 <- V.freeze arr1
+  a2 <- V.freeze arr2
+  xs <- V.thaw $ (V.++) a1 a2
+  return $ DArray xs
 d_add x y = throwError $ TypeMismatch "int/real + int/real, strings, tuples or arrays" (toTypeIndicator x)
 
-d_sub :: DExpr -> DExpr -> ThrowsError DExpr
+d_sub :: DExpr -> DExpr -> IOThrowsError DExpr
 d_sub (DInt exp1)  (DInt exp2)  = return $ DInt(exp1 - exp2)
 d_sub (DReal exp1) (DReal exp2) = return $ DReal(exp1 - exp2)
 d_sub (DInt exp1)  (DReal exp2) = return $ DReal((fromIntegral exp1) - exp2)
@@ -749,7 +789,7 @@ d_sub (DReal exp1) (DInt exp2)  = return $ DReal(exp1 - (fromIntegral exp2))
 d_sub x y = throwError $ TypeMismatch "int/real - int/real" (toTypeIndicator x)
 
 
-d_mul :: DExpr -> DExpr -> ThrowsError DExpr
+d_mul :: DExpr -> DExpr -> IOThrowsError DExpr
 d_mul (DInt exp1)  (DInt exp2)  = return $ DInt(exp1 * exp2)
 d_mul (DReal exp1) (DReal exp2) = return $ DReal(exp1 * exp2)
 d_mul (DInt exp1)  (DReal exp2) = return $ DReal((fromIntegral exp1) * exp2)
@@ -757,7 +797,7 @@ d_mul (DReal exp1) (DInt exp2)  = return $ DReal(exp1 * (fromIntegral exp2))
 d_mul x y = throwError $ TypeMismatch "int/real * int/real" (toTypeIndicator x)
 
 
-d_div :: DExpr -> DExpr -> ThrowsError DExpr
+d_div :: DExpr -> DExpr -> IOThrowsError DExpr
 d_div (DInt exp1)  (DInt exp2)  = return $ DInt(quot exp1 exp2)
 d_div (DReal exp1) (DReal exp2) = return $ DReal(exp1 / exp2)
 d_div (DInt exp1)  (DReal exp2) = return $ DReal((fromIntegral exp1) / exp2)
@@ -938,14 +978,16 @@ primitives = [("length", builtinLength)]
 
 
 builtinLength :: [DExpr] -> ThrowsError DExpr
-builtinLength [(DArray items)] = return $ DInt $ fromIntegral $ length items
+builtinLength [(DArray items)] = return $ DInt $ fromIntegral $ VM.length items
+builtinLength [(DTuple items)] = return $ DInt $ fromIntegral $ V.length items
 builtinLength [notArray] = throwError $ TypeMismatch "array" (toTypeIndicator notArray)
 builtinLength args = throwError $ NumArgs 1 args
 
 
 ioPrimitives :: [(String, [DExpr] -> IOThrowsError DExpr)]
-ioPrimitives = [("print", builtinPrint False),
-                ("println", builtinPrint True)]
+ioPrimitives = [ ("print", builtinPrint False)
+               , ("println", builtinPrint True)
+               , ("format", builtinFormat)]
 
 
 builtinPrint :: Bool -> [DExpr] -> IOThrowsError DExpr
@@ -954,6 +996,34 @@ builtinPrint False [x]           = (liftIO $ putStr $ show x) >> return DEmpty
 builtinPrint False xs            = mapM (builtinPrint False . return) xs >> return DEmpty
 builtinPrint True [(DString s)] = (liftIO $ putStrLn s) >> return DEmpty
 builtinPrint True xs = builtinPrint False xs >> (liftIO $ putStrLn "") >> return DEmpty
+
+
+-- | Largely based on `show` implementation with exception on IO-based types.
+builtinFormat :: [DExpr] -> IOThrowsError DExpr
+builtinFormat [] = return $ DString ""
+builtinFormat xs = liftIO $ liftM (DString . foldr (++) "") $ mapM showPlus xs
+  where
+    showPlus :: DExpr -> IO String
+    showPlus (DArray xs) = do
+      ys <- V.freeze xs
+      zs <- V.mapM showPlus ys
+      return $ bracketed $ intercalate ", " (V.toList zs)
+      where bracketed = ("[" ++) . (++ "]")
+
+    showPlus (DTuple xs) = do
+      ys <- V.mapM showTupleItem xs
+      return $ braced $ intercalate ", " (V.toList ys)
+      where
+        braced = ("{" ++) . (++ "}")
+
+        showTupleItem :: (String, IORef DExpr) -> IO String
+        showTupleItem (k, rv) = do
+          v <- readIORef rv >>= showPlus
+          return $ if null k
+            then v
+            else k ++ " := " ++ v
+
+    showPlus other = return $ show other
 
 
 primitiveBindings :: IO Env

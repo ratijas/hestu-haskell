@@ -12,6 +12,7 @@ dependencies:
 - base >= 4.7 && < 5
 - parsec >= 3.1 && < 4
 - mtl
+- vector >= 0.12
 
 library:
   source-dirs:           app
