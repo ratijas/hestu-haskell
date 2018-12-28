@@ -1004,24 +1004,24 @@ builtinFormat [] = return $ DString ""
 builtinFormat xs = liftIO $ liftM (DString . foldr (++) "") $ mapM showPlus xs
   where
     showPlus :: DExpr -> IO String
-    showPlus (DArray xs) = do
-      ys <- V.freeze xs
-      zs <- V.mapM showPlus ys
-      return $ bracketed $ intercalate ", " (V.toList zs)
+    showPlus (DArray xs) =
+      V.freeze xs
+      >>= V.mapM showPlus
+      >>= return . bracketed . intercalate ", " . V.toList
       where bracketed = ("[" ++) . (++ "]")
 
-    showPlus (DTuple xs) = do
-      ys <- V.mapM showTupleItem xs
-      return $ braced $ intercalate ", " (V.toList ys)
+    showPlus (DTuple xs) =
+      V.mapM showTupleItem xs
+      >>= return . braced . intercalate ", " . V.toList
       where
         braced = ("{" ++) . (++ "}")
 
         showTupleItem :: (String, IORef DExpr) -> IO String
-        showTupleItem (k, rv) = do
-          v <- readIORef rv >>= showPlus
-          return $ if null k
-            then v
-            else k ++ " := " ++ v
+        showTupleItem (k, rv) =
+          readIORef rv
+          >>= showPlus
+          >>= return . (tag ++)
+          where tag = if null k then "" else (k ++ " := ")
 
     showPlus other = return $ show other
 

@@ -1,7 +1,7 @@
 var s := "";
 for y in 0 .. 10 loop
     for x in 0 .. 10 loop
-        if x = y or (x-10) = -y then
+        if x = y or (x-10+1) = -y then
             s := s + ".";
         else
             s := s + " ";
