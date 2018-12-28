@@ -13,9 +13,9 @@ import Data.Maybe
 import System.Environment
 import System.IO
 import qualified Text.Parsec.Token as P
-import Text.Parsec.Expr
-import Text.Parsec.Language (emptyDef, javaStyle, LanguageDef)
-import Text.ParserCombinators.Parsec hiding (spaces, string)
+import           Text.Parsec.Expr
+import           Text.Parsec.Language (javaStyle)
+import           Text.ParserCombinators.Parsec hiding (spaces, string)
 
 
 -- *** D AST
