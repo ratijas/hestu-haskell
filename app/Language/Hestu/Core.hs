@@ -588,13 +588,14 @@ eval env (DIndex arrayExpr indexExpr) = do
   list <- case array of
     DArray arr -> return arr
     DString str -> return $ map (DString . return) str
-    _ -> throwError $ TypeMismatch "array" (toTypeIndicator array)
+    other -> liftThrows $ typeMismatch'or'yahaha "array" other
   index <- eval env indexExpr
   case index of
     DInt idx | 0 <= i && i < length list -> return $ list !! i
              | otherwise                 -> throwError $ AttributeError array $ show idx
       where i = fromIntegral idx
-    _  -> throwError $ TypeMismatch "int" (toTypeIndicator index)
+    DEmpty -> throwError Yahaha
+    other -> liftThrows $ typeMismatch'or'yahaha "int" other
 
 eval env (DMember tupleExpr index) = do
   tuple <- eval env tupleExpr
@@ -605,7 +606,8 @@ eval env (DMember tupleExpr index) = do
         _      -> throwError $ AttributeError tuple name
       Right idx | 0 <= idx && idx < length tup -> return $ snd $ tup !! idx
                 | otherwise -> throwError $ AttributeError tuple $ show idx
-    _ -> throwError $ TypeMismatch "tuple" (toTypeIndicator tuple)
+    DEmpty -> throwError Yahaha
+    other -> liftThrows $ typeMismatch'or'yahaha "tuple" other
 
 eval env (DFuncLit params body) = return $ DFunc params body env
 
@@ -620,8 +622,8 @@ eval env (DOp (DUnaryOp operator expr)) = do
 
 eval env (DOp (DBinaryOp lhsExpr op rhsExpr)) = do
   lhs <- eval env lhsExpr
-  rhs <- eval env rhsExpr
-  liftThrows $ binaryOperation lhs op rhs
+  let rhs = eval env rhsExpr -- do not force evaluation just yet
+  binaryOperation lhs op rhs
 
 eval env (DOp (expr `IsInstance` typ)) = do
   val <- eval env expr
@@ -640,6 +642,7 @@ apply (DFunc params body closure) args =
         recoverOnReturn e = throwError e
 apply (DPrimitiveFunc func) args = liftThrows $ func args
 apply (DPrimitiveIOFunc func) args = func args
+apply DEmpty _ = throwError Yahaha
 apply notFunc _ = throwError $ NotFunction "Not a function" (show notFunc)
 
 
@@ -649,57 +652,83 @@ unaryOperation DUnaryMinus (DReal operand) = return $ DReal $ operand * (-1)
 unaryOperation DUnaryPlus val@(DInt operand) = return $ val
 unaryOperation DUnaryPlus val@(DReal operand) = return $ val
 unaryOperation DUnaryNot (DBool operand) = return $ DBool $ not operand
-unaryOperation _ val = throwError $ TypeMismatch "int, real or boolean" (toTypeIndicator val)
+unaryOperation _ val = typeMismatch'or'yahaha "int, real or boolean" val
 
 
-binaryOperation :: DExpr -> DBinaryOp -> DExpr -> ThrowsError DExpr
-binaryOperation lhs op rhs =
-  case lookup op boolOpFunc of
-    Just boolOp -> do
-      l <- unpackBool lhs
-      r <- unpackBool rhs
-      return $ DBool $ boolOp l r
-    _ -> case lookup op equalityOpFunc of
-      Just eqOp -> do
-        l <- unpackReal lhs
-        r <- unpackReal rhs
-        return $ DBool $ eqOp l r
-      _ -> case lookup op mathOpFunc of
-        Just mathOp -> mathOp lhs rhs
-        _ -> throwError Yahaha
+-- | Takes unevaluated `rhs`, so that it can be lazily evaluated in case of
+-- logical short-circuiting operators.
+binaryOperation :: DExpr -> DBinaryOp -> IOThrowsError DExpr -> IOThrowsError DExpr
+binaryOperation lhs op rhsExpr =
+  let boolFuncM = lookup op boolOpFunctions
+      eqFuncM   = lookup op equalityOpFunctions
+      mathFuncM = lookup op mathOpFunctions
+  in case (boolFuncM, eqFuncM, mathFuncM) of
+    (Just boolFunc, _, _) -> applyBoolOp boolFunc
+    (_, Just eqFunc,   _) -> applyEqOp eqFunc
+    (_, _, Just mathFunc) -> applyMathOp mathFunc
+    _                     -> liftThrows $ throwError Yahaha
+  where
+    applyBoolOp f = do
+      l <- liftThrows $ unpackBool lhs
+      f l rhsExpr >>= return . DBool
+
+    applyEqOp f = do
+        l <- unpack lhs
+        r <- rhsExpr >>= unpack
+        return $ DBool $ f l r
+        where unpack = liftThrows . unpackReal
+
+    applyMathOp f = do
+      rhs <- rhsExpr
+      liftThrows $ f lhs rhs
 
 
-boolOpFunc :: [(DBinaryOp, Bool -> Bool -> Bool)]
-boolOpFunc = [(DAnd, (&&)),
-              (DOr,  (||)),
-              (DXor, (/=))]
+-- | `rhs` is wrapped in monad for lazy evaluation.
+boolOpFunctions :: [(DBinaryOp, Bool -> IOThrowsError DExpr -> IOThrowsError Bool)]
+boolOpFunctions = [ (DAnd, andF)
+                  , (DOr ,  orF)
+                  , (DXor, xorF)]
+  where
+    andF l rhs = if not l
+      then return False
+      else unpack rhs
+
+    orF l rhs = if l
+      then return True
+      else unpack rhs
+
+    xorF l rhs = do
+      r <- unpack rhs
+      return $ l /= r
+
+    unpack = (>>= liftThrows . unpackBool)
 
 
-equalityOpFunc :: [(DBinaryOp, Double -> Double -> Bool)]
-equalityOpFunc = [(DLT, (<)),
-                  (DGT, (>)),
-                  (DLE, (<=)),
-                  (DGE, (>=)),
-                  (DEqual, (==)),
-                  (DNotEqual, (/=))]
+equalityOpFunctions :: [(DBinaryOp, Double -> Double -> Bool)]
+equalityOpFunctions = [ (DLT, (<))
+                      , (DGT, (>))
+                      , (DLE, (<=))
+                      , (DGE, (>=))
+                      , (DEqual, (==))
+                      , (DNotEqual, (/=))]
 
 
-mathOpFunc :: [(DBinaryOp, DExpr -> DExpr -> ThrowsError DExpr)]
-mathOpFunc = [(DAdd, d_add),
-              (DSub, d_sub),
-              (DMul, d_mul),
-              (DDiv, d_div)]
+mathOpFunctions :: [(DBinaryOp, DExpr -> DExpr -> ThrowsError DExpr)]
+mathOpFunctions = [ (DAdd, d_add)
+                  , (DSub, d_sub)
+                  , (DMul, d_mul)
+                  , (DDiv, d_div)]
 
 
 unpackBool :: DExpr -> ThrowsError Bool
 unpackBool (DBool b) = return b
-unpackBool notBool  = throwError $ TypeMismatch "boolean" (toTypeIndicator notBool)
+unpackBool val = typeMismatch'or'yahaha "boolean" val
 
 
 unpackReal :: DExpr -> ThrowsError Double
 unpackReal (DInt int) = return $ fromIntegral int
 unpackReal (DReal real) = return real
-unpackReal notReal = throwError $ TypeMismatch "real" (toTypeIndicator notReal)
+unpackReal val = typeMismatch'or'yahaha "int or real" val
 
 
 d_add :: DExpr -> DExpr -> ThrowsError DExpr
@@ -794,6 +823,13 @@ trapError action = catchError action (return . show)
 
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
+
+
+typeMismatch'or'yahaha :: String -> DExpr -> ThrowsError a
+typeMismatch'or'yahaha expected found =
+  case toTypeIndicator found of
+    DTypeEmpty -> throwError Yahaha
+    typ -> throwError $ TypeMismatch expected typ
 
 
 -- *** IO Error Handling
