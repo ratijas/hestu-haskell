@@ -895,7 +895,9 @@ evalAndPrint env script =  evalString env script >>= putStrLn
 
 
 evalString :: Env -> String -> IO String
-evalString env script = runIOThrows $ liftM show $ (liftThrows $ readBody script) >>= execBody env
+evalString env script = runIOThrows $ (liftThrows $ readBody script)
+                                  >>= execBody env
+                                  >>= (liftIO . showPlus)
 
 
 runOne :: String -> IO ()
@@ -1002,28 +1004,29 @@ builtinPrint True xs = builtinPrint False xs >> (liftIO $ putStrLn "") >> return
 builtinFormat :: [DExpr] -> IOThrowsError DExpr
 builtinFormat [] = return $ DString ""
 builtinFormat xs = liftIO $ liftM (DString . foldr (++) "") $ mapM showPlus xs
+
+
+showPlus :: DExpr -> IO String
+showPlus (DArray xs) =
+  V.freeze xs
+  >>= V.mapM showPlus
+  >>= return . bracketed . intercalate ", " . V.toList
+  where bracketed = ("[" ++) . (++ "]")
+
+showPlus (DTuple xs) =
+  V.mapM showTupleItem xs
+  >>= return . braced . intercalate ", " . V.toList
   where
-    showPlus :: DExpr -> IO String
-    showPlus (DArray xs) =
-      V.freeze xs
-      >>= V.mapM showPlus
-      >>= return . bracketed . intercalate ", " . V.toList
-      where bracketed = ("[" ++) . (++ "]")
+    braced = ("{" ++) . (++ "}")
 
-    showPlus (DTuple xs) =
-      V.mapM showTupleItem xs
-      >>= return . braced . intercalate ", " . V.toList
-      where
-        braced = ("{" ++) . (++ "}")
+    showTupleItem :: (String, IORef DExpr) -> IO String
+    showTupleItem (k, rv) =
+      readIORef rv
+      >>= showPlus
+      >>= return . (tag ++)
+      where tag = if null k then "" else (k ++ " := ")
 
-        showTupleItem :: (String, IORef DExpr) -> IO String
-        showTupleItem (k, rv) =
-          readIORef rv
-          >>= showPlus
-          >>= return . (tag ++)
-          where tag = if null k then "" else (k ++ " := ")
-
-    showPlus other = return $ show other
+showPlus other = return $ show other
 
 
 primitiveBindings :: IO Env
