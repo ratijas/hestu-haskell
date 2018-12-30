@@ -57,6 +57,27 @@ instance Show DIterable where
   show (DIterableExpr iexp) = show iexp
   show (DIterableRange expr1 expr2) = show expr1 ++ ".." ++ show expr2
 
+
+newtype DIterator = DIterator [DExpr]
+
+
+iteratorGet :: DExpr -> IOThrowsError DIterator
+iteratorGet iterable =
+  case iterable of
+    -- loop over individual characters of a string
+    DString str -> return $ DIterator $ map (DString . return) str
+    -- loop over individual array elements
+    DArray array -> return . DIterator . V.toList =<< V.freeze array
+    -- loop over tuple named keys
+    DTuple iterator -> return $ DIterator $ map (DString . fst) $ V.toList iterator
+    x -> liftThrows $ typeMismatch'or'yahaha "string, array or tuple" x
+
+
+iteratorNext :: DIterator -> Maybe (DIterator, DExpr)
+iteratorNext (DIterator (x:xs)) = Just ((DIterator xs), x)
+iteratorNext (DIterator []) = Nothing
+
+
 newtype DBody = DBody [DStmt]
 instance Show DBody where
   show (DBody stmts) = intercalate ";\n" (map show stmts) ++ ";"
@@ -568,9 +589,22 @@ execStmt env loop@(DWhile condition loopBody) = do
     DBool True -> execBody env loopBody >> execStmt env loop
     __________ -> return DEmpty
 
-execStmt env loop@(DFor name it body) =
-  case it of
-    DIterableExpr expr         -> throwError Yahaha  -- TODO
+execStmt env loop@(DFor name iterable body) =
+  case iterable of
+    DIterableExpr expr -> do
+      iterable' <- eval env expr
+      iterator <- iteratorGet iterable'
+      defineVar env name DEmpty
+      forLoopIter env name iterator body
+      where
+        forLoopIter env name iterator body = do
+          case iteratorNext iterator of
+            Nothing            -> return DEmpty
+            Just (iterator, x) -> do
+              setVar env name x
+              execBody env body
+              forLoopIter env name iterator body
+
     DIterableRange lower upper -> do
       (l, u) <- range (lower, upper)
       defineVar env name (DInt l)
