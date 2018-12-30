@@ -1,0 +1,5 @@
+for c in "hello" loop
+    {};
+end;
+
+c; // should be "o"

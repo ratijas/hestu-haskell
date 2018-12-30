@@ -7,4 +7,4 @@ t := t + [
     end
 ];
 
-println(t);
+println(format(t));

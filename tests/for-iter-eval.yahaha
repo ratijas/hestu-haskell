@@ -1,0 +1,10 @@
+var it := [0, "one", "two", "switch!"];
+var t := {foo := "bar", U := 2, it};
+
+for x in t.2[3] loop
+    {};
+end;
+
+x; // should be "!"
+
+// test that for-in iterable expression is not simply taken for granted and actually evaluated before use.

@@ -1,0 +1,5 @@
+for x in [42, 37, 9001] loop
+    {};
+end;
+
+x; // should be 9001
