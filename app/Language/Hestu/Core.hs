@@ -543,27 +543,34 @@ execBody env (DBody body) = do
 
 
 execStmt :: Env -> DStmt -> IOThrowsError DExpr
+
 execStmt env (DExpr expr) = eval env expr
+
 execStmt env (name ::= expr) = do
   val <- eval env expr
   defineVar env name val
+
 execStmt env ((DAtom var) := expr) = do
   val <- eval env expr
   setVar env var val
-execStmt env (_ := expr) = throwError Yahaha
+
+execStmt env (_ := expr) = throwError Yahaha  -- TODO
+
 execStmt env (DIf condition thenBody elseBody) = do
   cond <- eval env condition
   execBody env $ case cond of
     DBool True -> thenBody
-    _          -> elseBody
+    __________ -> elseBody
+
 execStmt env loop@(DWhile condition loopBody) = do
   cond <- eval env condition
   case cond of
     DBool True -> execBody env loopBody >> execStmt env loop
-    _ -> return DEmpty
+    __________ -> return DEmpty
+
 execStmt env loop@(DFor name it body) =
   case it of
-    DIterableExpr expr -> throwError Yahaha
+    DIterableExpr expr         -> throwError Yahaha  -- TODO
     DIterableRange lower upper -> do
       (l, u) <- range (lower, upper)
       defineVar env name (DInt l)
@@ -575,7 +582,7 @@ execStmt env loop@(DFor name it body) =
           up <- eval env upper
           case (low, up) of
             ((DInt l), (DInt u)) -> return (l, u)
-            _ -> throwError $ TypeMismatch "int" (toTypeIndicator low)
+            ____________________ -> throwError $ TypeMismatch "int" (toTypeIndicator low)
 
         forLoop :: String -> (Integer, Integer) -> DBody -> IOThrowsError DExpr
         forLoop name (l, u) body = do
@@ -586,7 +593,8 @@ execStmt env loop@(DFor name it body) =
               setVar env name (DInt l)
               execBody env body
               forLoop name (l + 1, u) body
-            _ -> return DEmpty
+            __________ -> return DEmpty
+
 execStmt env (DReturn arg) = throwError $ RaiseReturn arg
 
 
@@ -637,16 +645,17 @@ eval env (DMember tupleExpr index) = do
   tuple <- eval env tupleExpr
   kv <- case tuple of
     DTuple t -> return t
-    other -> liftThrows $ typeMismatch'or'yahaha "tuple" other
+    other    -> liftThrows $ typeMismatch'or'yahaha "tuple" other
 
   ref <- case index of
     Left name -> case V.find ((== name) . fst) kv of
       Just (_, value) -> return value
-      _               -> throwError $ AttributeError tuple name
-    Right idx | 0 <= idx && idx < V.length kv ->
-                return $ snd $ (V.!) kv idx
-              | otherwise ->
-                throwError $ AttributeError tuple $ show idx
+      _______________ -> throwError $ AttributeError tuple name
+    Right idx
+      | 0 <= idx && idx < V.length kv
+        -> return $ snd $ (V.!) kv idx
+      | otherwise
+        -> throwError $ AttributeError tuple $ show idx
   liftIO $ readIORef ref
 
 eval env (DCall function args) = do
@@ -706,7 +715,7 @@ binaryOperation lhs op rhsExpr =
     (Just boolFunc, _, _) -> applyBoolOp boolFunc
     (_, Just eqFunc,   _) -> applyEqOp eqFunc
     (_, _, Just mathFunc) -> rhsExpr >>= mathFunc lhs
-    _                     -> liftThrows $ throwError Yahaha
+    _____________________ -> liftThrows $ throwError Yahaha
   where
     applyBoolOp f = do
       l <- liftThrows $ unpackBool lhs
