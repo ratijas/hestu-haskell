@@ -554,7 +554,15 @@ readBody :: String -> ThrowsError DBody
 readBody = readAny body
 
 
+readProgram :: String -> ThrowsError DProgram
+readProgram = readAny program
+
+
 -- eval & apply
+
+
+execProgram :: Env -> DProgram -> IOThrowsError DExpr
+execProgram env (DProgram body) = execBody env body
 
 
 execBody :: Env -> DBody -> IOThrowsError DExpr
@@ -938,8 +946,8 @@ evalAndPrint env script =  evalString env script >>= putStrLn
 
 
 evalString :: Env -> String -> IO String
-evalString env script = runIOThrows $ (liftThrows $ readBody script)
-                                  >>= execBody env
+evalString env script = runIOThrows $ (liftThrows $ readProgram script)
+                                  >>= execProgram env
                                   >>= (liftIO . showPlus)
 
 
