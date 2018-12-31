@@ -675,9 +675,9 @@ eval env (DIndex containerExpr indexExpr) = do
 
   case container of
     DArray xs -> do
-      item <- liftIO $ VM.read xs i
-      return item
-      -- throwError $ AttributeError container $ show i -- TODO: informative error message
+      if 0 <= i && i < VM.length xs
+        then liftIO $ VM.read xs i
+        else throwError $ AttributeError container $ show i
     DString str -> if 0 <= i && i < length str
       then return $ DString $ return $ str !! i
       else throwError $ AttributeError container $ show i
