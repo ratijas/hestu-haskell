@@ -579,11 +579,12 @@ execStmt env (name ::= expr) = do
   val <- eval env expr
   defineVar env name val
 
-execStmt env ((DAtom var) := expr) = do
+execStmt env (lvalue := expr) = do
   val <- eval env expr
-  setVar env var val
-
-execStmt env (_ := expr) = throwError Yahaha  -- TODO
+  case lvalue of
+    DAtom var ->
+      setVar env var val
+    _ -> throwError Yahaha
 
 execStmt env (DIf condition thenBody elseBody) = do
   cond <- eval env condition
