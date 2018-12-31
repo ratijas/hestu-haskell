@@ -677,10 +677,10 @@ eval env (DIndex containerExpr indexExpr) = do
     DArray xs -> do
       if 0 <= i && i < VM.length xs
         then liftIO $ VM.read xs i
-        else throwError $ AttributeError container $ show i
+        else throwError $ IndexError container i
     DString str -> if 0 <= i && i < length str
       then return $ DString $ return $ str !! i
-      else throwError $ AttributeError container $ show i
+      else throwError $ IndexError container i
     other -> liftThrows $ typeMismatch'or'yahaha "array or string" other
 
 eval env (DMember tupleExpr index) = do
@@ -887,6 +887,7 @@ data HestuError = NumArgs Integer [DExpr]
                 | Parser ParseError
                 | NotFunction String String
                 | UnboundVar String String
+                | IndexError DExpr Int
                 | AttributeError DExpr String
                 | Default String
                 | RaiseReturn DExpr    -- ^ Flow control operator
@@ -900,6 +901,8 @@ instance Show HestuError where
   show (Parser parseErr) = "Parse error at " ++ show parseErr
   show (NotFunction message func) = message ++ ": " ++ show func
   show (UnboundVar  message varname)  = message ++ ": " ++ varname
+  show (IndexError object index) = "Index error: object " ++ (show object)
+                                     ++ " has no index " ++ (show index)
   show (AttributeError object member) = "Attribute error: object " ++ (show object)
                                      ++ " has no attribute " ++ member
   show (Default str) = "unknown error. " ++ str
