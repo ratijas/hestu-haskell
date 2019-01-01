@@ -584,6 +584,15 @@ execStmt env (lvalue := expr) = do
   case lvalue of
     DAtom var ->
       setVar env var val
+    DIndex lvalue' index -> do
+      array <- arrayOrGTFO env lvalue'
+      i <- indexOrGTFO env index
+      checkBounds array i
+      case array of
+        DArray arr -> do
+          liftIO $ VM.write arr i val
+          return DEmpty
+        _ -> throwError Yahaha
     _ -> throwError Yahaha
 
 execStmt env (DIf condition thenBody elseBody) = do
@@ -666,19 +675,15 @@ eval env val@(DTuple _) = return val
 
 eval env (DIndex containerExpr indexExpr) = do
   -- get reasonable index
-  index <- eval env indexExpr
-  i <- case index of
-    DInt idx -> return $ fromIntegral idx
-    other -> liftThrows $ typeMismatch'or'yahaha "int" other
+  i <- indexOrGTFO env indexExpr
 
   -- get reasonable container
   container <- eval env containerExpr
 
   case container of
     DArray xs -> do
-      if 0 <= i && i < VM.length xs
-        then liftIO $ VM.read xs i
-        else throwError $ IndexError container i
+      checkBounds container i
+      liftIO $ VM.read xs i
     DString str -> if 0 <= i && i < length str
       then return $ DString $ return $ str !! i
       else throwError $ IndexError container i
@@ -736,6 +741,32 @@ apply (DPrimitiveFunc func) args = liftThrows $ func args
 apply (DPrimitiveIOFunc func) args = func args
 apply DEmpty _ = throwError Yahaha
 apply notFunc _ = throwError $ NotFunction "Not a function" (show notFunc)
+
+
+indexOrGTFO :: (Num n) => Env -> DExpr -> IOThrowsError n
+indexOrGTFO env indexExpr = do
+  index <- eval env indexExpr
+  case index of
+    DInt idx -> return $ fromIntegral idx
+    other    -> liftThrows $ typeMismatch'or'yahaha "int" other
+
+
+arrayOrGTFO :: Env -> DExpr -> IOThrowsError DExpr
+arrayOrGTFO env arrayExpr = do
+  array <- eval env arrayExpr
+  case array of
+    DArray arr -> return array
+    other      -> liftThrows $ typeMismatch'or'yahaha "array" other
+
+
+checkBounds :: DExpr -> Int -> IOThrowsError ()
+checkBounds expr i =
+  case expr of
+    DArray array ->
+      if 0 <= i && i < VM.length array
+        then return ()
+        else throwError $ IndexError expr i
+    _ -> return ()
 
 
 unaryOperation :: DUnaryOp -> DExpr -> ThrowsError DExpr
