@@ -941,6 +941,7 @@ data HestuError = NumArgs Integer [DExpr]
                 | UnboundVar String String
                 | IndexError DExpr Int
                 | AttributeError DExpr String
+                | AssertionError (Maybe String)
                 | Default String
                 | RaiseReturn DExpr    -- ^ Flow control operator
                 | Yahaha               -- ^ Null pointer exception, when trying to evaluate DEmpty
@@ -957,6 +958,8 @@ instance Show HestuError where
                                      ++ " has no index " ++ (show index)
   show (AttributeError object member) = "Attribute error: object " ++ (show object)
                                      ++ " has no attribute " ++ member
+  show (AssertionError Nothing) = "Assertion failed"
+  show (AssertionError (Just message)) = "Assertion failed: " ++ message
   show (Default str) = "unknown error. " ++ str
   show (RaiseReturn arg) = "Return"
   show (Yahaha) = "Ya-ha-ha!"
@@ -1091,7 +1094,10 @@ bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
 
 
 primitives :: [(String, [DExpr] -> ThrowsError DExpr)]
-primitives = [("length", builtinLength)]
+primitives =
+  [ ("length", builtinLength)
+  , ("assert", builtinAssert)
+  ]
 
 
 builtinLength :: [DExpr] -> ThrowsError DExpr
@@ -1099,6 +1105,17 @@ builtinLength [(DArray items)] = return $ DInt $ fromIntegral $ VM.length items
 builtinLength [(DTuple items)] = return $ DInt $ fromIntegral $ V.length items
 builtinLength [notArray] = throwError $ TypeMismatch "array" (toTypeIndicator notArray)
 builtinLength args = throwError $ NumArgs 1 args
+
+
+builtinAssert :: [DExpr] -> ThrowsError DExpr
+builtinAssert [DBool True]    = return DEmpty
+builtinAssert [DBool True, _] = return DEmpty
+builtinAssert [DBool False]                    = throwError $ AssertionError Nothing
+builtinAssert [DBool False, (DString message)] = throwError $ AssertionError $ Just message
+builtinAssert [DBool False, x] = typeMismatch'or'yahaha "string" x
+builtinAssert [x]              = typeMismatch'or'yahaha "bool" x
+builtinAssert []               = throwError $ NumArgs 1 []
+builtinAssert args             = throwError $ NumArgs 2 args
 
 
 ioPrimitives :: [(String, [DExpr] -> IOThrowsError DExpr)]
