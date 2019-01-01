@@ -809,17 +809,14 @@ binaryOperation lhs op rhsExpr =
     (Just boolFunc, _, _) -> applyBoolOp boolFunc
     (_, Just eqFunc,   _) -> applyEqOp eqFunc
     (_, _, Just mathFunc) -> mathFunc lhs =<< rhsExpr
-    _____________________ -> liftThrows $ throwError Yahaha
   where
     applyBoolOp f = do
       l <- liftThrows $ unpackBool lhs
       return . DBool =<< f l rhsExpr
 
     applyEqOp f = do
-        l <- unpack lhs
-        r <- unpack =<< rhsExpr
-        return $ DBool $ f l r
-        where unpack = liftThrows . unpackReal
+      rhs <- rhsExpr
+      return . DBool =<< f lhs rhs
 
 
 -- | `rhs` is wrapped in monad for lazy evaluation.
@@ -843,13 +840,36 @@ boolOpFunctions = [ (DAnd, andF)
     unpack = (>>= liftThrows . unpackBool)
 
 
-equalityOpFunctions :: [(DBinaryOp, Double -> Double -> Bool)]
-equalityOpFunctions = [ (DLT, (<))
-                      , (DGT, (>))
-                      , (DLE, (<=))
-                      , (DGE, (>=))
-                      , (DEqual, (==))
-                      , (DNotEqual, (/=))]
+equalityOpFunctions :: [(DBinaryOp, DExpr -> DExpr -> IOThrowsError Bool)]
+equalityOpFunctions =
+  [ (DLT, makeDoubleOp (<))
+  , (DGT, makeDoubleOp (>))
+  , (DLE, makeDoubleOp (<=))
+  , (DGE, makeDoubleOp (>=))
+  , (DEqual, builtinEq)
+  , (DNotEqual, (fmap not .) . builtinEq)
+  ]
+
+  where
+    makeDoubleOp :: (Double -> Double -> a) -> (DExpr -> DExpr -> IOThrowsError a)
+    makeDoubleOp f = \lhs rhs -> do
+      l <- unpack lhs
+      r <- unpack rhs
+      return $ f l r
+      where unpack = liftThrows . unpackReal
+
+builtinEq :: DExpr -> DExpr -> IOThrowsError Bool
+builtinEq (DInt l)  (DInt r)  = return $ l == r
+builtinEq (DReal l) rhs       = (l ==) `liftM` (liftThrows . unpackReal) rhs
+builtinEq lhs       (DReal r) = (== r) `liftM` (liftThrows . unpackReal) lhs
+builtinEq (DBool l) (DBool r) = return $ l == r
+builtinEq (DString l) (DString r) = return $ l == r
+builtinEq (DArray l)  (DArray r) = do
+  lhs <- V.freeze l
+  rhs <- V.freeze r
+  let z = zip (V.toList lhs) (V.toList rhs)
+  (all id) <$> mapM (uncurry builtinEq) z
+builtinEq _ _ = return False
 
 
 mathOpFunctions :: [(DBinaryOp, DExpr -> DExpr -> IOThrowsError DExpr)]
