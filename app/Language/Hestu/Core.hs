@@ -808,16 +808,16 @@ binaryOperation lhs op rhsExpr =
   in case (boolFuncM, eqFuncM, mathFuncM) of
     (Just boolFunc, _, _) -> applyBoolOp boolFunc
     (_, Just eqFunc,   _) -> applyEqOp eqFunc
-    (_, _, Just mathFunc) -> rhsExpr >>= mathFunc lhs
+    (_, _, Just mathFunc) -> mathFunc lhs =<< rhsExpr
     _____________________ -> liftThrows $ throwError Yahaha
   where
     applyBoolOp f = do
       l <- liftThrows $ unpackBool lhs
-      f l rhsExpr >>= return . DBool
+      return . DBool =<< f l rhsExpr
 
     applyEqOp f = do
         l <- unpack lhs
-        r <- rhsExpr >>= unpack
+        r <- unpack =<< rhsExpr
         return $ DBool $ f l r
         where unpack = liftThrows . unpackReal
 
@@ -861,7 +861,7 @@ mathOpFunctions = [ (DAdd, d_add)
 
 unpackBool :: DExpr -> ThrowsError Bool
 unpackBool (DBool b) = return b
-unpackBool val = typeMismatch'or'yahaha "boolean" val
+unpackBool val = typeMismatch'or'yahaha "bool" val
 
 
 unpackReal :: DExpr -> ThrowsError Double
@@ -1018,12 +1018,9 @@ displayResult :: IOThrowsError DExpr -> IO ()
 displayResult result
     = runExceptT result
   >>= \case
-        (Right DEmpty) -> return ()
-        x -> putStrLn
-         =<< either
-                (return . show)
-                showPlus
-                x
+        Right DEmpty -> pure ()
+        Right x -> putStrLn =<< showPlus x
+        Left e -> print e
 
 
 readPrompt :: String -> IO String
@@ -1155,8 +1152,8 @@ builtinRange [upper]          = liftThrows $ typeMismatch'or'yahaha "int" upper
 builtinRange [(DInt l), (DInt u)] = return . DArray =<< (V.thaw . V.fromList . map DInt) [l..u]
 builtinRange [(DInt _), upper]    = liftThrows $ typeMismatch'or'yahaha "int" upper
 builtinRange [lower,    _____]    = liftThrows $ typeMismatch'or'yahaha "int" lower
-builtinRange args@[] = throwError $ NumArgs 1 []
-builtinRange args    = throwError $ NumArgs 2 args
+builtinRange []   = throwError $ NumArgs 1 []
+builtinRange args = throwError $ NumArgs 2 args
 
 
 primitiveBindings :: IO Env
