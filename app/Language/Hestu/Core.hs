@@ -1,6 +1,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE LambdaCase                #-}
 
 module Language.Hestu.Core where
 
@@ -963,9 +964,6 @@ instance Show HestuError where
 type ThrowsError = Either HestuError
 
 
-trapError action = catchError action (return . show)
-
-
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
 
@@ -988,29 +986,44 @@ liftThrows (Left err) = throwError err
 liftThrows (Right val) = return val
 
 
-runIOThrows :: IOThrowsError String -> IO String
-runIOThrows action = runExceptT (trapError action) >>= return . extractValue
-
-
 -- *** REPL
 
 
-evalAndPrint :: Env -> String -> IO ()
-evalAndPrint env script =  evalString env script >>= putStrLn
-
-
-evalString :: Env -> String -> IO String
-evalString env script = runIOThrows $ (liftThrows $ readProgram script)
-                                  >>= execProgram env
-                                  >>= (liftIO . showPlus)
-
-
 runOne :: String -> IO ()
-runOne script = primitiveBindings >>= flip evalAndPrint script
+runOne script
+    = primitiveBindings
+  >>= flip evalAndPrint script
 
 
 runRepl :: IO ()
-runRepl = primitiveBindings >>= until_ (== "quit") (readPrompt "Hestu>>> ") . evalAndPrint
+runRepl
+    = primitiveBindings
+  >>= until_
+        (== "quit")
+        (readPrompt "Hestu>>> ") . evalAndPrint
+
+
+evalAndPrint :: Env -> String -> IO ()
+evalAndPrint env script
+  = displayResult $ readExecProgram env script
+
+
+readExecProgram :: Env -> String -> IOThrowsError DExpr
+readExecProgram env script
+    = liftThrows (readProgram script)
+  >>= execProgram env
+
+
+displayResult :: IOThrowsError DExpr -> IO ()
+displayResult result
+    = runExceptT result
+  >>= \case
+        (Right DEmpty) -> return ()
+        x -> putStrLn
+         =<< either
+                (return . show)
+                showPlus
+                x
 
 
 readPrompt :: String -> IO String
