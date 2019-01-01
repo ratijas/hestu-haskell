@@ -7,4 +7,4 @@ for x in t.2[3] loop
     {};
 end;
 
-x; // should be "!"
+assert(x = "!");

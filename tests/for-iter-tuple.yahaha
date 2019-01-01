@@ -2,4 +2,4 @@ for key in {foo := "bar", "anonymous", three := 4} loop
     {};
 end;
 
-key; // should be "three"
+assert(key = "three");

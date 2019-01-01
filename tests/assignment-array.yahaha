@@ -1,7 +1,8 @@
 var xs := [1, 2, 3];
 xs[0] := 42;
-println(format(xs)); // should be [42, 2, 3];
+
+assert(xs = [42, 2, 3]);
 
 var ys := [xs, xs, xs];
 ys[1][2] := "z";
-println(format(ys)); // should be [[42, 2, "z"], [42, 2, "z"], [42, 2, "z"]]
+assert(ys = [[42, 2, "z"], [42, 2, "z"], [42, 2, "z"]]);

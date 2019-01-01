@@ -2,6 +2,8 @@ var x := 100;
 
 if x > 42 then
     "yes";
+    assert(true);
 else
     "no";
+    assert(false);
 end;

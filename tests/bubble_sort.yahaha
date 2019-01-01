@@ -1,6 +1,6 @@
 var t := [8, 1, 6, 4, 9, 11];
-var n := 6;
-var sort := func(arr, n) is
+var sort := func(arr) is
+    var n := length(arr);
     for i in 0 .. (n - 1) loop
         for j in 0 .. (n - i - 1) loop
             if (arr[j] > arr[j + 1]) then
@@ -14,4 +14,5 @@ var sort := func(arr, n) is
     end;
     arr;
 end;
-sort(t, n);
+
+assert(sort(t) = [1, 4, 6, 8, 9, 11]);

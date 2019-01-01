@@ -2,4 +2,4 @@ for c in "hello" loop
     {};
 end;
 
-c; // should be "o"
+assert(c = "o");

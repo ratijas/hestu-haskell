@@ -1,13 +1,17 @@
+var status := [];
+
 var f := func() is
-    println("f before");
+    status := status + ["f before"];
     return 42;
-    println("f after");
+    status := status + ["f after"];
 end;
 
 var g := func(fn) is
-    println("g before");
+    status := status + ["g before"];
     var a := fn();
-    println("g after");
+    status := status + ["g after"];
 end;
 
 g(f);
+
+assert(status = ["g before", "f before", "g after"]);

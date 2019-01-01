@@ -2,9 +2,9 @@ var t := [];
 t := t + [
     func(y) is
         for i in 0 .. y loop
-            (5 + 1);
+            {};
         end;
     end
 ];
 
-println(format(t));
+assert(length(t) = 1);

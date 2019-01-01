@@ -1,4 +1,9 @@
 var t := {foo := "bar", 42, baz := false};
 t.1 := 37;
 t.baz := true;
-println(format(t)); // should be {foo := "bar", 37, baz := true};
+
+assert(
+    t.0 = "bar" and
+    t.1 = 37    and
+    t.2 = true
+);

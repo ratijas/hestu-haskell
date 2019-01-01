@@ -6,6 +6,6 @@ end;
 
 var my := counter(42);
 
-my(0);
-my(10);
-my(5); // should be 57
+assert(my(0)  = 42);
+assert(my(10) = 52);
+assert(my(5)  = 57);

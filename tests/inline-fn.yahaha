@@ -1,5 +1,5 @@
 var f := func(x) => x + 2;
-println("f(40) should be 42, actual:", f(40));
+assert(f(40) = 42);
 
 var add := func(x) => func(y) => x + y;
-println("2 + 3 should be 5, actual:", add(2)(3));
+assert(add(2)(3) = 5);
