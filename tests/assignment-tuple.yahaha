@@ -1,0 +1,4 @@
+var t := {foo := "bar", 42, baz := false};
+t.1 := 37;
+t.baz := true;
+println(format(t)); // should be {foo := "bar", 37, baz := true};

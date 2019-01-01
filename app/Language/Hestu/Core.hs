@@ -581,9 +581,11 @@ execStmt env (name ::= expr) = do
 
 execStmt env (lvalue := expr) = do
   val <- eval env expr
+
   case lvalue of
     DAtom var ->
       setVar env var val
+
     DIndex lvalue' index -> do
       array <- arrayOrGTFO env lvalue'
       i <- indexOrGTFO env index
@@ -592,7 +594,13 @@ execStmt env (lvalue := expr) = do
         DArray arr -> do
           liftIO $ VM.write arr i val
           return DEmpty
-        _ -> throwError Yahaha
+
+    DMember lvalue' member -> do
+      tuple <- tupleOrGTFO env lvalue'
+      ref <- tupleGetMember tuple member
+      liftIO $ writeIORef ref val
+      return DEmpty
+
     _ -> throwError Yahaha
 
 execStmt env (DIf condition thenBody elseBody) = do
@@ -690,20 +698,8 @@ eval env (DIndex containerExpr indexExpr) = do
     other -> liftThrows $ typeMismatch'or'yahaha "array or string" other
 
 eval env (DMember tupleExpr index) = do
-  tuple <- eval env tupleExpr
-  kv <- case tuple of
-    DTuple t -> return t
-    other    -> liftThrows $ typeMismatch'or'yahaha "tuple" other
-
-  ref <- case index of
-    Left name -> case V.find ((== name) . fst) kv of
-      Just (_, value) -> return value
-      _______________ -> throwError $ AttributeError tuple name
-    Right idx
-      | 0 <= idx && idx < V.length kv
-        -> return $ snd $ (V.!) kv idx
-      | otherwise
-        -> throwError $ AttributeError tuple $ show idx
+  tuple <- tupleOrGTFO env tupleExpr
+  ref <- tupleGetMember tuple index
   liftIO $ readIORef ref
 
 eval env (DCall function args) = do
@@ -755,8 +751,8 @@ arrayOrGTFO :: Env -> DExpr -> IOThrowsError DExpr
 arrayOrGTFO env arrayExpr = do
   array <- eval env arrayExpr
   case array of
-    DArray arr -> return array
-    other      -> liftThrows $ typeMismatch'or'yahaha "array" other
+    DArray _ -> return array
+    other    -> liftThrows $ typeMismatch'or'yahaha "array" other
 
 
 checkBounds :: DExpr -> Int -> IOThrowsError ()
@@ -767,6 +763,29 @@ checkBounds expr i =
         then return ()
         else throwError $ IndexError expr i
     _ -> return ()
+
+
+tupleOrGTFO :: Env -> DExpr -> IOThrowsError DExpr
+tupleOrGTFO env tupleExpr = do
+  tuple <- eval env tupleExpr
+  case tuple of
+    DTuple _ -> return tuple
+    other    -> liftThrows $ typeMismatch'or'yahaha "tuple" other
+
+
+tupleGetMember :: DExpr -> (Either String Int) -> IOThrowsError (IORef DExpr)
+tupleGetMember tuple member =
+  case tuple of
+    DTuple tup ->
+      case member of
+        Left name -> case V.find ((== name) . fst) tup of
+          Just (_, value) -> return value
+          _______________ -> throwError $ AttributeError tuple name
+        Right i
+          | 0 <= i && i < V.length tup
+            -> return $ snd $ (V.!) tup i
+          | otherwise
+            -> throwError $ AttributeError tuple $ show i
 
 
 unaryOperation :: DUnaryOp -> DExpr -> ThrowsError DExpr
