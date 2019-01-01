@@ -1094,7 +1094,9 @@ builtinLength args = throwError $ NumArgs 1 args
 ioPrimitives :: [(String, [DExpr] -> IOThrowsError DExpr)]
 ioPrimitives = [ ("print", builtinPrint False)
                , ("println", builtinPrint True)
-               , ("format", builtinFormat)]
+               , ("format", builtinFormat)
+               , ("range", builtinRange)
+               ]
 
 
 builtinPrint :: Bool -> [DExpr] -> IOThrowsError DExpr
@@ -1132,6 +1134,16 @@ showPlus (DTuple xs) =
       where tag = if null k then "" else (k ++ " := ")
 
 showPlus other = return $ show other
+
+
+builtinRange :: [DExpr] -> IOThrowsError DExpr
+builtinRange [upper@(DInt _)] = builtinRange [(DInt 0), upper]
+builtinRange [upper]          = liftThrows $ typeMismatch'or'yahaha "int" upper
+builtinRange [(DInt l), (DInt u)] = return . DArray =<< (V.thaw . V.fromList . map DInt) [l..u]
+builtinRange [(DInt _), upper]    = liftThrows $ typeMismatch'or'yahaha "int" upper
+builtinRange [lower,    _____]    = liftThrows $ typeMismatch'or'yahaha "int" lower
+builtinRange args@[] = throwError $ NumArgs 1 []
+builtinRange args    = throwError $ NumArgs 2 args
 
 
 primitiveBindings :: IO Env
