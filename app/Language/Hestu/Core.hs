@@ -43,7 +43,7 @@ instance Show DStmt where
   show (string ::= expr) = "var " ++ string ++ " := " ++ show expr
   show (expr1 := exp2) = show expr1 ++ " := " ++ show exp2
   show (DExpr exp) = show exp
-  show (DIf expr body1 body2) = "if " ++ show expr ++" then " ++ show body1 ++ " else "++ show body2
+  show (DIf expr body1 body2) = "if " ++ show expr ++" then " ++ show body1 ++ " else "++ show body2 ++ " end"
   show (DWhile expr body) = "while " ++ show expr ++ " loop " ++ show body ++ " end"
   show (DFor string iterable body) = "for " ++ string ++ " in "++ show iterable ++ " loop " ++ show body ++ " end"
   show (DReturn arg) = "return" ++ val
